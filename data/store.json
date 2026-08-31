@@ -3,17 +3,17 @@
     {
       "id": "1788201041040-6zlhs9",
       "text": "hola mundo",
-      "status": "pending",
+      "status": "published",
       "createdAt": "2026-08-31T18:30:41.040Z",
-      "scheduledAt": null,
-      "publishedAt": null,
-      "threadsPostId": null,
+      "scheduledAt": "2026-08-31T18:41:11.459Z",
+      "publishedAt": "2026-08-31T18:41:16.429Z",
+      "threadsPostId": "18099931304629293",
       "error": null
     }
   ],
   "settings": {
     "autoPublish": false,
-    "intervalMinutes": 60,
+    "intervalMinutes": 720,
     "nextPublishAt": null
   }
 }
