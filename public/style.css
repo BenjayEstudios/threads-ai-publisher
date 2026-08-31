@@ -47,7 +47,9 @@ button:disabled { opacity: .55; cursor: not-allowed; transform: none; }
 .scheduler-controls label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #625b69; font-weight: 700; }
 .scheduler-controls input, .scheduler-controls select { height: 43px; padding: 0 11px; border: 1px solid #dcd5e2; border-radius: 9px; background: #fff; outline: none; }
 .scheduler-controls input { width: 100px; }
+.scheduler-controls input[type="time"] { width: 135px; }
 .scheduler-controls button { height: 43px; }
+.schedule-help { margin-top: 12px; padding: 11px 13px; border-radius: 10px; background: #f7f3fa; color: #625b69; font-size: 13px; line-height: 1.5; }
 .status { min-height: 20px; margin-top: 12px; font-size: 14px; }
 .status.success { color: #19703d; }
 .status.error { color: #a02c45; }
@@ -79,4 +81,5 @@ th { color: #756e7d; font-size: 12px; text-transform: uppercase; letter-spacing:
     .stat-card { padding: 13px; }
     .scheduler-controls { align-items: stretch; }
     .scheduler-controls button, .scheduler-controls label { width: 100%; }
+    .scheduler-controls input, .scheduler-controls input[type="time"], .scheduler-controls select { width: 100%; }
 }
