@@ -42,9 +42,25 @@ function setStatus(element, message, type = '') {
 
 async function api(url, options = {}) {
     const response = await fetch(url, options);
-    const data = await response.json();
+    const contentType = response.headers.get('content-type') || '';
+    const raw = await response.text();
+    let data;
+
+    if (contentType.includes('application/json')) {
+        try {
+            data = JSON.parse(raw);
+        } catch {
+            throw new Error(`El servidor devolvió JSON inválido (${response.status})`);
+        }
+    } else {
+        if (raw.trim().startsWith('<!DOCTYPE') || raw.trim().startsWith('<html')) {
+            throw new Error(`La ruta ${url} no está disponible en el servidor actual. Haz git pull y reinicia Node.`);
+        }
+        throw new Error(`Respuesta inesperada del servidor (${response.status})`);
+    }
+
     if (!response.ok || data.success === false) {
-        throw new Error(data.error?.message || data.error || 'Ocurrió un error');
+        throw new Error(data.error?.message || data.error || `Error HTTP ${response.status}`);
     }
     return data;
 }
@@ -110,12 +126,15 @@ saveSettingsButton.addEventListener('click', async () => {
 });
 
 startButton.addEventListener('click', async () => {
+    startButton.disabled = true;
     try {
         await api('/api/automation/start', { method: 'POST' });
         setStatus(schedulerStatus, '▶ Automatización iniciada. La primera publicación se enviará ahora.', 'success');
         loadState();
     } catch (error) {
         setStatus(schedulerStatus, `❌ ${error.message}`, 'error');
+    } finally {
+        startButton.disabled = false;
     }
 });
 
