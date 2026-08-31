@@ -1,6 +1,5 @@
 const $ = (selector) => document.querySelector(selector);
 
-// Elementos que existen realmente en public/index.html
 const postText = $('#postText');
 const counter = $('#counter');
 const publishButton = $('#publishButton');
@@ -10,6 +9,7 @@ const addQueueButton = $('#addQueueButton');
 
 const intervalValue = $('#intervalValue');
 const intervalUnit = $('#intervalUnit');
+const startTime = $('#startTime');
 const saveSettingsButton = $('#saveSettingsButton');
 const startButton = $('#startButton');
 const pauseButton = $('#pauseButton');
@@ -186,19 +186,35 @@ startButton?.addEventListener('click', async (event) => {
     event.preventDefault();
 
     console.log('🔥 BOTÓN INICIAR PRESIONADO');
-    console.log('📤 Enviando POST /api/automation/start');
+
+    const selectedStartAt = buildStartAtFromTime();
+
+    if (!selectedStartAt) {
+        setStatus(schedulerStatus, 'Selecciona una hora válida para la primera publicación.', 'error');
+        return;
+    }
+
+    console.log('📅 Primera publicación programada para:', selectedStartAt);
 
     startButton.disabled = true;
-    setStatus(schedulerStatus, 'Iniciando automatización...', '');
+    setStatus(schedulerStatus, 'Programando automatización...', '');
 
     try {
         const data = await api('/api/automation/start', {
             method: 'POST',
-            body: JSON.stringify({})
+            body: JSON.stringify({
+                startAt: selectedStartAt.toISOString()
+            })
         });
 
         console.log('✅ Automatización iniciada:', data);
-        setStatus(schedulerStatus, '▶ Automatización iniciada correctamente.', 'success');
+
+        setStatus(
+            schedulerStatus,
+            `▶ Automatización iniciada. Primera publicación: ${formatDate(data.settings.nextPublishAt)}`,
+            'success'
+        );
+
         await loadState();
     } catch (error) {
         console.error('❌ Error iniciando automatización:', error);
@@ -311,7 +327,7 @@ function renderPosts(posts) {
                     <span class="pill ${escapeHtml(post.status)}">${statusText}</span>
                 </td>
                 <td>
-                    ${formatDate(post.publishedAt || post.createdAt)}
+                    ${formatDate(post.publishedAt || post.scheduledAt || post.createdAt)}
                 </td>
                 <td>
                     ${isPending ? `<button class="delete-button" onclick="deletePost('${escapeJs(post.id)}')">Eliminar</button>` : ''}
@@ -371,6 +387,47 @@ function syncIntervalInputs(minutes) {
 }
 
 // ============================================================
+// HORA DE INICIO
+// ============================================================
+
+function buildStartAtFromTime() {
+    if (!startTime || !startTime.value) {
+        return new Date();
+    }
+
+    const match = /^(\d{2}):(\d{2})$/.exec(startTime.value);
+    if (!match) return null;
+
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+
+    if (hours > 23 || minutes > 59) return null;
+
+    const now = new Date();
+    const candidate = new Date(now);
+
+    candidate.setHours(hours, minutes, 0, 0);
+
+    if (candidate.getTime() <= now.getTime()) {
+        candidate.setDate(candidate.getDate() + 1);
+    }
+
+    return candidate;
+}
+
+function setDefaultStartTime() {
+    if (!startTime || startTime.value) return;
+
+    const now = new Date();
+    now.setMinutes(now.getMinutes() + 5);
+
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+
+    startTime.value = `${hours}:${minutes}`;
+}
+
+// ============================================================
 // UTILIDADES
 // ============================================================
 
@@ -386,12 +443,16 @@ function formatDate(date) {
     const parsed = new Date(date);
     if (Number.isNaN(parsed.getTime())) return '—';
 
-    return parsed.toLocaleString('es-CL');
+    return parsed.toLocaleString('es-CL', {
+        dateStyle: 'short',
+        timeStyle: 'short'
+    });
 }
 
 function formatInterval(minutes) {
     const value = Number(minutes);
 
+    if (!Number.isFinite(value)) return '—';
     if (value % 1440 === 0) return `${value / 1440} día(s)`;
     if (value % 60 === 0) return `${value / 60} hora(s)`;
     return `${value} minuto(s)`;
@@ -407,13 +468,16 @@ function escapeHtml(value) {
 }
 
 function escapeJs(value) {
-    return String(value).replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+    return String(value)
+        .replaceAll('\\', '\\\\')
+        .replaceAll("'", "\\'");
 }
 
 // ============================================================
 // INICIO
 // ============================================================
 
+setDefaultStartTime();
 updateCounter();
 loadState();
 setInterval(loadState, 5000);
