@@ -1,0 +1,8 @@
+{
+  "posts": [],
+  "settings": {
+    "autoPublish": false,
+    "intervalMinutes": 60,
+    "nextPublishAt": null
+  }
+}
