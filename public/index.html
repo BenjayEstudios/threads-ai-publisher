@@ -30,7 +30,7 @@
                 </div>
                 <textarea id="postText" maxlength="500" placeholder="Escribe tu publicación..."></textarea>
                 <div class="row-between"><span class="counter"><span id="counter">0</span> / 500</span></div>
-                <button id="publishButton" class="primary">🧵 Publicar ahora</button>
+                <button id="publishButton" type="button" class="primary">🧵 Publicar ahora</button>
                 <div id="manualStatus" class="status"></div>
             </section>
 
@@ -39,37 +39,56 @@
                     <div><h2>📥 Agregar a la cola</h2><p>Separa las notas con una línea vacía.</p></div>
                 </div>
                 <textarea id="queueText" maxlength="10000" placeholder="Primera publicación...\n\nSegunda publicación...\n\nTercera publicación..."></textarea>
-                <button id="addQueueButton" class="secondary">➕ Agregar a la cola</button>
+                <button id="addQueueButton" type="button" class="secondary">➕ Agregar a la cola</button>
                 <div id="queueStatus" class="status"></div>
             </section>
         </div>
 
         <section class="panel scheduler-panel">
             <div class="panel-title">
-                <div><h2>⏰ Publicación automática</h2><p>Publica una nota por vez y detente cuando la cola quede vacía.</p></div>
+                <div>
+                    <h2>⏰ Publicación automática</h2>
+                    <p>Define cuándo empieza la cola y cada cuánto se publica una nota.</p>
+                </div>
             </div>
+
             <div class="scheduler-controls">
-                <label>Publicar cada
+                <label>
+                    Publicar cada
                     <input id="intervalValue" type="number" min="1" value="1">
                 </label>
-                <label>Unidad
+
+                <label>
+                    Unidad
                     <select id="intervalUnit">
                         <option value="minutes">minutos</option>
                         <option value="hours" selected>horas</option>
                         <option value="days">días</option>
                     </select>
                 </label>
-                <button id="saveSettingsButton" class="secondary">Guardar intervalo</button>
-                <button id="startButton" class="primary">▶ Iniciar</button>
-                <button id="pauseButton" class="warning">⏸ Pausar</button>
+
+                <label>
+                    Primera publicación
+                    <input id="startTime" type="time">
+                </label>
+
+                <button id="saveSettingsButton" type="button" class="secondary">Guardar intervalo</button>
+                <button id="startButton" type="button" class="primary">▶ Iniciar</button>
+                <button id="pauseButton" type="button" class="warning">⏸ Pausar</button>
             </div>
+
+            <div class="schedule-help">
+                La hora elegida se toma como la próxima hora de inicio. Si ya pasó hoy, se programará para mañana.
+                Ejemplo: <strong>08:00 + cada 12 horas → 08:00, 20:00, 08:00...</strong>
+            </div>
+
             <div id="schedulerStatus" class="status"></div>
         </section>
 
         <section class="panel">
             <div class="panel-title">
                 <div><h2>📋 Cola e historial</h2><p>Las más recientes aparecen primero.</p></div>
-                <button id="clearHistoryButton" class="danger-outline">Limpiar historial</button>
+                <button id="clearHistoryButton" type="button" class="danger-outline">Limpiar historial</button>
             </div>
             <div class="table-wrap">
                 <table>
