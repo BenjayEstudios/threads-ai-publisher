@@ -1,5 +1,16 @@
 {
-  "posts": [],
+  "posts": [
+    {
+      "id": "1788201041040-6zlhs9",
+      "text": "hola mundo",
+      "status": "pending",
+      "createdAt": "2026-08-31T18:30:41.040Z",
+      "scheduledAt": null,
+      "publishedAt": null,
+      "threadsPostId": null,
+      "error": null
+    }
+  ],
   "settings": {
     "autoPublish": false,
     "intervalMinutes": 60,
