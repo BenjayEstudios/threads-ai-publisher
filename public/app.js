@@ -1,705 +1,403 @@
 const $ = (selector) => document.querySelector(selector);
 
+// Elementos que existen realmente en public/index.html
 const postText = $('#postText');
-const charCount = $('#charCount');
-const publishNow = $('#publishNow');
+const counter = $('#counter');
+const publishButton = $('#publishButton');
 
 const queueText = $('#queueText');
-const addQueue = $('#addQueue');
+const addQueueButton = $('#addQueueButton');
 
 const intervalValue = $('#intervalValue');
 const intervalUnit = $('#intervalUnit');
-const saveInterval = $('#saveInterval');
+const saveSettingsButton = $('#saveSettingsButton');
+const startButton = $('#startButton');
+const pauseButton = $('#pauseButton');
 
-const startAutomation = $('#startAutomation');
-const pauseAutomation = $('#pauseAutomation');
-
-const queueBody = $('#queueBody');
-const historyBody = $('#historyBody');
+const postsTable = $('#postsTable');
+const clearHistoryButton = $('#clearHistoryButton');
 
 const pendingCount = $('#pendingCount');
 const publishedCount = $('#publishedCount');
 const errorCount = $('#errorCount');
-const totalCount = $('#totalCount');
-
-const automationStatus = $('#automationStatus');
 const nextPublish = $('#nextPublish');
 
+const automationBadge = $('#automationBadge');
 const manualStatus = $('#manualStatus');
 const queueStatus = $('#queueStatus');
-
+const schedulerStatus = $('#schedulerStatus');
 
 // ============================================================
 // API
 // ============================================================
 
 async function api(url, options = {}) {
-
-    console.log(`📡 ${options.method || 'GET'} ${url}`);
+    const method = options.method || 'GET';
+    console.log(`📡 ${method} ${url}`);
 
     const response = await fetch(url, {
         ...options,
         headers: {
-            'Content-Type': 'application/json',
+            ...(options.body ? { 'Content-Type': 'application/json' } : {}),
             ...(options.headers || {})
         }
     });
 
     const text = await response.text();
-
     let data;
 
     try {
         data = JSON.parse(text);
     } catch (error) {
-
-        console.error(
-            '❌ Respuesta no JSON:',
-            text
-        );
-
-        throw new Error(
-            `El servidor respondió algo inesperado (${response.status})`
-        );
+        console.error('❌ Respuesta no JSON:', text);
+        throw new Error(`El servidor respondió algo inesperado (${response.status})`);
     }
 
     if (!response.ok || data.success === false) {
-
-        throw new Error(
-            data.error ||
-            `Error HTTP ${response.status}`
-        );
+        throw new Error(data.error || `Error HTTP ${response.status}`);
     }
 
     return data;
 }
-
 
 // ============================================================
 // CONTADOR
 // ============================================================
 
 function updateCounter() {
-
-    if (!postText) return;
-
-    charCount.textContent =
-        `${postText.value.length}/500`;
+    if (!postText || !counter) return;
+    counter.textContent = postText.value.length;
 }
 
-postText?.addEventListener(
-    'input',
-    updateCounter
-);
-
+postText?.addEventListener('input', updateCounter);
 
 // ============================================================
 // PUBLICACIÓN MANUAL
 // ============================================================
 
-publishNow?.addEventListener(
-    'click',
-    async () => {
+publishButton?.addEventListener('click', async (event) => {
+    event.preventDefault();
 
-        const text =
-            postText.value.trim();
+    const text = postText.value.trim();
 
-        if (!text) {
-
-            manualStatus.textContent =
-                'Escribe una publicación.';
-
-            manualStatus.className =
-                'status error';
-
-            return;
-        }
-
-        if (text.length > 500) {
-
-            manualStatus.textContent =
-                'La publicación supera los 500 caracteres.';
-
-            manualStatus.className =
-                'status error';
-
-            return;
-        }
-
-        publishNow.disabled = true;
-
-        manualStatus.textContent =
-            'Publicando...';
-
-        manualStatus.className =
-            'status';
-
-        try {
-
-            const data =
-                await api(
-                    '/api/publish',
-                    {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            text
-                        })
-                    }
-                );
-
-            manualStatus.textContent =
-                `Publicado correctamente. ID: ${data.postId}`;
-
-            manualStatus.className =
-                'status success';
-
-            postText.value = '';
-
-            updateCounter();
-
-            await loadState();
-
-        } catch (error) {
-
-            console.error(error);
-
-            manualStatus.textContent =
-                `❌ ${error.message}`;
-
-            manualStatus.className =
-                'status error';
-
-        } finally {
-
-            publishNow.disabled = false;
-        }
+    if (!text) {
+        setStatus(manualStatus, 'Escribe una publicación.', 'error');
+        return;
     }
-);
 
+    if (text.length > 500) {
+        setStatus(manualStatus, 'La publicación supera los 500 caracteres.', 'error');
+        return;
+    }
+
+    publishButton.disabled = true;
+    setStatus(manualStatus, 'Publicando...', '');
+
+    try {
+        const data = await api('/api/publish', {
+            method: 'POST',
+            body: JSON.stringify({ text })
+        });
+
+        setStatus(manualStatus, `✅ Publicado correctamente. ID: ${data.postId}`, 'success');
+        postText.value = '';
+        updateCounter();
+        await loadState();
+    } catch (error) {
+        console.error('❌ Publicación manual:', error);
+        setStatus(manualStatus, `❌ ${error.message}`, 'error');
+    } finally {
+        publishButton.disabled = false;
+    }
+});
 
 // ============================================================
 // AGREGAR A COLA
 // ============================================================
 
-addQueue?.addEventListener(
-    'click',
-    async () => {
+addQueueButton?.addEventListener('click', async (event) => {
+    event.preventDefault();
 
-        const text =
-            queueText.value.trim();
+    const text = queueText.value.trim();
 
-        if (!text) {
-
-            queueStatus.textContent =
-                'Escribe al menos una nota.';
-
-            queueStatus.className =
-                'status error';
-
-            return;
-        }
-
-        addQueue.disabled = true;
-
-        queueStatus.textContent =
-            'Agregando...';
-
-        queueStatus.className =
-            'status';
-
-        try {
-
-            const data =
-                await api(
-                    '/api/queue',
-                    {
-                        method: 'POST',
-
-                        body: JSON.stringify({
-                            text
-                        })
-                    }
-                );
-
-            queueStatus.textContent =
-                `✅ ${data.added} publicación(es) agregada(s).`;
-
-            queueStatus.className =
-                'status success';
-
-            queueText.value = '';
-
-            await loadState();
-
-        } catch (error) {
-
-            console.error(error);
-
-            queueStatus.textContent =
-                `❌ ${error.message}`;
-
-            queueStatus.className =
-                'status error';
-
-        } finally {
-
-            addQueue.disabled = false;
-        }
+    if (!text) {
+        setStatus(queueStatus, 'Escribe al menos una publicación.', 'error');
+        return;
     }
-);
 
+    addQueueButton.disabled = true;
+    setStatus(queueStatus, 'Agregando a la cola...', '');
+
+    try {
+        const data = await api('/api/queue', {
+            method: 'POST',
+            body: JSON.stringify({ text })
+        });
+
+        setStatus(queueStatus, `✅ ${data.added} publicación(es) agregada(s).`, 'success');
+        queueText.value = '';
+        await loadState();
+    } catch (error) {
+        console.error('❌ Cola:', error);
+        setStatus(queueStatus, `❌ ${error.message}`, 'error');
+    } finally {
+        addQueueButton.disabled = false;
+    }
+});
 
 // ============================================================
 // GUARDAR INTERVALO
 // ============================================================
 
-saveInterval?.addEventListener(
-    'click',
-    async () => {
+saveSettingsButton?.addEventListener('click', async (event) => {
+    event.preventDefault();
 
-        try {
+    const value = Number(intervalValue.value);
+    const unit = intervalUnit.value;
 
-            const value =
-                Number(intervalValue.value);
-
-            const unit =
-                intervalUnit.value;
-
-            await api(
-                '/api/settings',
-                {
-                    method: 'PUT',
-
-                    body: JSON.stringify({
-                        value,
-                        unit
-                    })
-                }
-            );
-
-            queueStatus.textContent =
-                '✅ Intervalo guardado.';
-
-            queueStatus.className =
-                'status success';
-
-            await loadState();
-
-        } catch (error) {
-
-            queueStatus.textContent =
-                `❌ ${error.message}`;
-
-            queueStatus.className =
-                'status error';
-        }
+    if (!Number.isFinite(value) || value <= 0) {
+        setStatus(schedulerStatus, 'El intervalo debe ser mayor que 0.', 'error');
+        return;
     }
-);
 
+    saveSettingsButton.disabled = true;
+
+    try {
+        const data = await api('/api/settings', {
+            method: 'PUT',
+            body: JSON.stringify({ value, unit })
+        });
+
+        setStatus(schedulerStatus, `✅ Intervalo guardado: ${formatInterval(data.settings.intervalMinutes)}`, 'success');
+        await loadState();
+    } catch (error) {
+        console.error('❌ Configuración:', error);
+        setStatus(schedulerStatus, `❌ ${error.message}`, 'error');
+    } finally {
+        saveSettingsButton.disabled = false;
+    }
+});
 
 // ============================================================
 // INICIAR AUTOMATIZACIÓN
 // ============================================================
 
-startAutomation?.addEventListener(
-    'click',
-    async (event) => {
+startButton?.addEventListener('click', async (event) => {
+    event.preventDefault();
 
-        // Evita cualquier comportamiento accidental
-        // de submit/navegación del botón.
-        event.preventDefault();
+    console.log('🔥 BOTÓN INICIAR PRESIONADO');
+    console.log('📤 Enviando POST /api/automation/start');
 
-        console.log(
-            '🔥 BOTÓN INICIAR PRESIONADO'
-        );
+    startButton.disabled = true;
+    setStatus(schedulerStatus, 'Iniciando automatización...', '');
 
-        startAutomation.disabled = true;
+    try {
+        const data = await api('/api/automation/start', {
+            method: 'POST',
+            body: JSON.stringify({})
+        });
 
-        try {
-
-            const data =
-                await api(
-                    '/api/automation/start',
-                    {
-                        method: 'POST',
-
-                        body: JSON.stringify({})
-                    }
-                );
-
-            console.log(
-                '✅ Automatización iniciada:',
-                data
-            );
-
-            await loadState();
-
-        } catch (error) {
-
-            console.error(
-                '❌ Error iniciando automatización:',
-                error
-            );
-
-            queueStatus.textContent =
-                `❌ ${error.message}`;
-
-            queueStatus.className =
-                'status error';
-
-        } finally {
-
-            startAutomation.disabled = false;
-        }
+        console.log('✅ Automatización iniciada:', data);
+        setStatus(schedulerStatus, '▶ Automatización iniciada correctamente.', 'success');
+        await loadState();
+    } catch (error) {
+        console.error('❌ Error iniciando automatización:', error);
+        setStatus(schedulerStatus, `❌ ${error.message}`, 'error');
+    } finally {
+        startButton.disabled = false;
     }
-);
-
+});
 
 // ============================================================
 // PAUSAR AUTOMATIZACIÓN
 // ============================================================
 
-pauseAutomation?.addEventListener(
-    'click',
-    async (event) => {
+pauseButton?.addEventListener('click', async (event) => {
+    event.preventDefault();
 
-        event.preventDefault();
+    pauseButton.disabled = true;
 
-        try {
+    try {
+        await api('/api/automation/pause', {
+            method: 'POST',
+            body: JSON.stringify({})
+        });
 
-            await api(
-                '/api/automation/pause',
-                {
-                    method: 'POST',
-
-                    body: JSON.stringify({})
-                }
-            );
-
-            await loadState();
-
-        } catch (error) {
-
-            console.error(error);
-
-            queueStatus.textContent =
-                `❌ ${error.message}`;
-
-            queueStatus.className =
-                'status error';
-        }
+        setStatus(schedulerStatus, '⏸ Automatización pausada.', 'success');
+        await loadState();
+    } catch (error) {
+        console.error('❌ Pausa:', error);
+        setStatus(schedulerStatus, `❌ ${error.message}`, 'error');
+    } finally {
+        pauseButton.disabled = false;
     }
-);
-
+});
 
 // ============================================================
 // ELIMINAR PUBLICACIÓN
 // ============================================================
 
 async function deletePost(id) {
-
-    if (
-        !confirm(
-            '¿Eliminar esta publicación de la cola?'
-        )
-    ) {
-        return;
-    }
+    if (!confirm('¿Eliminar esta publicación?')) return;
 
     try {
-
-        await api(
-            `/api/queue/${encodeURIComponent(id)}`,
-            {
-                method: 'DELETE'
-            }
-        );
+        await api(`/api/queue/${encodeURIComponent(id)}`, {
+            method: 'DELETE'
+        });
 
         await loadState();
-
     } catch (error) {
-
-        alert(
-            `No se pudo eliminar: ${error.message}`
-        );
+        alert(`No se pudo eliminar: ${error.message}`);
     }
 }
 
+window.deletePost = deletePost;
 
 // ============================================================
-// RENDER COLA
+// LIMPIAR HISTORIAL
 // ============================================================
 
-function renderQueue(posts) {
+clearHistoryButton?.addEventListener('click', async (event) => {
+    event.preventDefault();
 
-    const pending =
-        posts.filter(
-            post =>
-                post.status === 'pending' ||
-                post.status === 'publishing'
-        );
+    if (!confirm('¿Eliminar todo el historial de publicaciones y errores?')) return;
 
-    if (!pending.length) {
+    try {
+        await api('/api/history', {
+            method: 'DELETE'
+        });
 
-        queueBody.innerHTML = `
+        setStatus(schedulerStatus, '✅ Historial limpiado.', 'success');
+        await loadState();
+    } catch (error) {
+        setStatus(schedulerStatus, `❌ ${error.message}`, 'error');
+    }
+});
+
+// ============================================================
+// TABLA DE PUBLICACIONES
+// ============================================================
+
+function renderPosts(posts) {
+    if (!postsTable) return;
+
+    const ordered = [...posts].reverse();
+
+    if (!ordered.length) {
+        postsTable.innerHTML = `
             <tr>
-                <td colspan="4" class="empty">
-                    No hay publicaciones pendientes.
-                </td>
+                <td colspan="4" class="empty">No hay publicaciones todavía.</td>
             </tr>
         `;
-
         return;
     }
 
-    queueBody.innerHTML =
-        pending.map(
-            post => `
+    postsTable.innerHTML = ordered.map(post => {
+        const isPending = post.status === 'pending';
+        const statusText = {
+            pending: 'Pendiente',
+            publishing: 'Publicando',
+            published: 'Publicado',
+            error: 'Error'
+        }[post.status] || post.status;
 
+        return `
             <tr>
-
                 <td>
-                    <span class="pill ${post.status}">
-                        ${post.status}
-                    </span>
+                    <div class="post-text">${escapeHtml(post.text)}</div>
+                    ${post.error ? `<div class="row-error">${escapeHtml(post.error)}</div>` : ''}
                 </td>
-
                 <td>
-                    <div class="post-text">
-                        ${escapeHtml(post.text)}
-                    </div>
+                    <span class="pill ${escapeHtml(post.status)}">${statusText}</span>
                 </td>
-
                 <td>
-                    ${formatDate(post.createdAt)}
+                    ${formatDate(post.publishedAt || post.createdAt)}
                 </td>
-
                 <td>
-                    ${
-                        post.status === 'pending'
-                            ? `
-                                <button
-                                    class="delete-button"
-                                    onclick="deletePost('${post.id}')"
-                                >
-                                    Eliminar
-                                </button>
-                            `
-                            : ''
-                    }
-                </td>
-
-            </tr>
-        `
-        ).join('');
-}
-
-
-// ============================================================
-// RENDER HISTORIAL
-// ============================================================
-
-function renderHistory(posts) {
-
-    const history =
-        posts.filter(
-            post =>
-                post.status === 'published' ||
-                post.status === 'error'
-        );
-
-    if (!history.length) {
-
-        historyBody.innerHTML = `
-            <tr>
-                <td colspan="4" class="empty">
-                    Todavía no hay publicaciones en el historial.
+                    ${isPending ? `<button class="delete-button" onclick="deletePost('${escapeJs(post.id)}')">Eliminar</button>` : ''}
                 </td>
             </tr>
         `;
-
-        return;
-    }
-
-    historyBody.innerHTML =
-        history
-            .slice()
-            .reverse()
-            .map(
-                post => `
-
-                <tr>
-
-                    <td>
-                        <span class="pill ${post.status}">
-                            ${post.status}
-                        </span>
-                    </td>
-
-                    <td>
-                        <div class="post-text">
-                            ${escapeHtml(post.text)}
-                        </div>
-
-                        ${
-                            post.error
-                                ? `
-                                    <span class="row-error">
-                                        ${escapeHtml(post.error)}
-                                    </span>
-                                `
-                                : ''
-                        }
-                    </td>
-
-                    <td>
-                        ${
-                            post.publishedAt
-                                ? formatDate(post.publishedAt)
-                                : '-'
-                        }
-                    </td>
-
-                    <td>
-                        ${post.threadsPostId || '-'}
-                    </td>
-
-                </tr>
-            `
-            )
-            .join('');
+    }).join('');
 }
 
-
 // ============================================================
-// CARGAR ESTADO
+// ESTADO
 // ============================================================
 
 async function loadState() {
-
     try {
+        const data = await api('/api/state');
+        const { posts, settings, stats } = data;
 
-        const data =
-            await api('/api/state');
+        pendingCount.textContent = stats.pending;
+        publishedCount.textContent = stats.published;
+        errorCount.textContent = stats.errors;
 
-        const {
-            posts,
-            settings,
-            stats
-        } = data;
+        renderPosts(posts);
 
-        pendingCount.textContent =
-            stats.pending;
-
-        publishedCount.textContent =
-            stats.published;
-
-        errorCount.textContent =
-            stats.errors;
-
-        totalCount.textContent =
-            stats.total;
-
-        renderQueue(posts);
-
-        renderHistory(posts);
-
-        automationStatus.textContent =
-            settings.autoPublish
-                ? 'Activo'
-                : 'Pausado';
-
-        automationStatus.className =
-            settings.autoPublish
-                ? 'badge active'
-                : 'badge paused';
-
-        if (settings.nextPublishAt) {
-
-            nextPublish.textContent =
-                formatDate(
-                    settings.nextPublishAt
-                );
-
+        if (settings.autoPublish) {
+            automationBadge.textContent = '▶ Activo';
+            automationBadge.className = 'badge active';
         } else {
-
-            nextPublish.textContent =
-                'No programada';
+            automationBadge.textContent = '⏸ Pausado';
+            automationBadge.className = 'badge paused';
         }
 
-        if (
-            settings.intervalMinutes
-        ) {
+        nextPublish.textContent = settings.nextPublishAt
+            ? formatDate(settings.nextPublishAt)
+            : '—';
 
-            const minutes =
-                Number(
-                    settings.intervalMinutes
-                );
-
-            if (minutes % 1440 === 0) {
-
-                intervalValue.value =
-                    minutes / 1440;
-
-                intervalUnit.value =
-                    'days';
-
-            } else if (
-                minutes % 60 === 0
-            ) {
-
-                intervalValue.value =
-                    minutes / 60;
-
-                intervalUnit.value =
-                    'hours';
-
-            } else {
-
-                intervalValue.value =
-                    minutes;
-
-                intervalUnit.value =
-                    'minutes';
-            }
-        }
-
+        syncIntervalInputs(settings.intervalMinutes);
     } catch (error) {
-
-        console.error(
-            '❌ Error cargando estado:',
-            error
-        );
+        console.error('❌ Error cargando estado:', error);
     }
 }
 
+function syncIntervalInputs(minutes) {
+    const value = Number(minutes);
+    if (!Number.isFinite(value) || value <= 0) return;
+
+    if (value % 1440 === 0) {
+        intervalValue.value = value / 1440;
+        intervalUnit.value = 'days';
+    } else if (value % 60 === 0) {
+        intervalValue.value = value / 60;
+        intervalUnit.value = 'hours';
+    } else {
+        intervalValue.value = value;
+        intervalUnit.value = 'minutes';
+    }
+}
 
 // ============================================================
 // UTILIDADES
 // ============================================================
 
+function setStatus(element, message, type) {
+    if (!element) return;
+    element.textContent = message;
+    element.className = type ? `status ${type}` : 'status';
+}
+
 function formatDate(date) {
+    if (!date) return '—';
 
-    if (!date) return '-';
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return '—';
 
-    const parsed =
-        new Date(date);
+    return parsed.toLocaleString('es-CL');
+}
 
-    if (
-        Number.isNaN(
-            parsed.getTime()
-        )
-    ) {
-        return '-';
-    }
+function formatInterval(minutes) {
+    const value = Number(minutes);
 
-    return parsed.toLocaleString(
-        'es-CL'
-    );
+    if (value % 1440 === 0) return `${value / 1440} día(s)`;
+    if (value % 60 === 0) return `${value / 60} hora(s)`;
+    return `${value} minuto(s)`;
 }
 
 function escapeHtml(value) {
-
     return String(value)
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
@@ -708,19 +406,14 @@ function escapeHtml(value) {
         .replaceAll("'", '&#039;');
 }
 
+function escapeJs(value) {
+    return String(value).replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+}
 
 // ============================================================
 // INICIO
 // ============================================================
 
-window.deletePost =
-    deletePost;
-
 updateCounter();
-
 loadState();
-
-setInterval(
-    loadState,
-    5000
-);
+setInterval(loadState, 5000);
