@@ -25,6 +25,7 @@ function defaultStore() {
         settings: {
             autoPublish: false,
             intervalMinutes: 60,
+            dailyTimes: ['08:00', '14:00', '20:00'],
             nextPublishAt: null
         }
     };
@@ -44,7 +45,11 @@ function readStore() {
         return {
             ...defaultStore(),
             ...data,
-            settings: { ...defaultStore().settings, ...(data.settings || {}) },
+            settings: {
+                ...defaultStore().settings,
+                ...(data.settings || {}),
+                dailyTimes: normalizeDailyTimes(data.settings?.dailyTimes)
+            },
             posts: Array.isArray(data.posts) ? data.posts : []
         };
     } catch (error) {
@@ -71,6 +76,16 @@ function intervalToMinutes(value, unit) {
     return Math.round(number * (multipliers[unit] || 60));
 }
 
+function normalizeDailyTimes(times) {
+    if (!Array.isArray(times)) return ['08:00', '14:00', '20:00'];
+
+    const valid = times
+        .map(value => String(value || '').trim())
+        .filter(value => /^([01]\d|2[0-3]):[0-5]\d$/.test(value));
+
+    return [...new Set(valid)].sort();
+}
+
 function createQueuePost(text) {
     return {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -92,7 +107,7 @@ function isAuthError(errorMessage) {
         message.includes('token de acceso no válido') ||
         message.includes('invalid access token') ||
         message.includes('error validating access token') ||
-        message.includes('oauth') && (message.includes('token') || message.includes('session'))
+        (message.includes('oauth') && (message.includes('token') || message.includes('session')))
     );
 }
 
@@ -190,6 +205,53 @@ async function publishQueuePost(postId) {
     }
 }
 
+function getNextDailyDate(fromDate, dailyTimes) {
+    const times = normalizeDailyTimes(dailyTimes);
+    if (!times.length) return null;
+
+    const base = new Date(fromDate);
+    base.setSeconds(0, 0);
+
+    for (let dayOffset = 0; dayOffset <= 7; dayOffset++) {
+        const day = new Date(base);
+        day.setDate(base.getDate() + dayOffset);
+
+        for (const time of times) {
+            const [hours, minutes] = time.split(':').map(Number);
+            const candidate = new Date(day);
+            candidate.setHours(hours, minutes, 0, 0);
+
+            if (candidate.getTime() > fromDate.getTime()) {
+                return candidate;
+            }
+        }
+    }
+
+    return null;
+}
+
+function getScheduleForPendingPosts(posts, settings, fromDate = new Date()) {
+    const schedule = new Map();
+    const pendingPosts = posts
+        .filter(post => post.status === 'pending')
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    let cursor = settings.nextPublishAt ? new Date(settings.nextPublishAt) : null;
+    if (!cursor || Number.isNaN(cursor.getTime())) {
+        if (!settings.autoPublish) return schedule;
+        cursor = getNextDailyDate(fromDate, settings.dailyTimes);
+    }
+
+    if (!cursor) return schedule;
+
+    pendingPosts.forEach(post => {
+        schedule.set(post.id, cursor.toISOString());
+        cursor = getNextDailyDate(new Date(cursor), settings.dailyTimes);
+    });
+
+    return schedule;
+}
+
 let schedulerRunning = false;
 
 async function schedulerTick() {
@@ -226,7 +288,7 @@ async function schedulerTick() {
     schedulerRunning = true;
 
     try {
-        nextPost.scheduledAt = new Date().toISOString();
+        nextPost.scheduledAt = new Date(settings.nextPublishAt).toISOString();
         writeStore(store);
 
         console.log(`⏰ Ejecutando publicación automática: ${nextPost.id}`);
@@ -250,8 +312,13 @@ async function schedulerTick() {
         const hasPending = after.posts.some(post => post.status === 'pending');
 
         if (hasPending) {
-            const intervalMs = Math.max(1, Number(after.settings.intervalMinutes)) * 60 * 1000;
-            after.settings.nextPublishAt = new Date(Date.now() + intervalMs).toISOString();
+            const next = getNextDailyDate(new Date(settings.nextPublishAt), after.settings.dailyTimes);
+            after.settings.nextPublishAt = next ? next.toISOString() : null;
+
+            if (!next) {
+                after.settings.autoPublish = false;
+            }
+
             writeStore(after);
             console.log(`⏰ Próxima publicación: ${after.settings.nextPublishAt}`);
         } else {
@@ -269,7 +336,7 @@ app.get('/api/health', (req, res) => {
     res.json({
         success: true,
         application: 'Threads AI Publisher',
-        version: '2.0.2',
+        version: '2.1.0',
         server: 'V2',
         timestamp: new Date().toISOString()
     });
@@ -374,7 +441,27 @@ app.put('/api/settings', (req, res) => {
     store.settings.intervalMinutes = minutes;
     writeStore(store);
 
-    console.log(`⚙️ Intervalo configurado: ${minutes} minutos`);
+    console.log(`⚙️ Intervalo legado configurado: ${minutes} minutos`);
+    res.json({ success: true, settings: store.settings });
+});
+
+app.put('/api/schedule', (req, res) => {
+    const times = normalizeDailyTimes(req.body.times);
+
+    if (!times.length) {
+        return res.status(400).json({ success: false, error: 'Debes seleccionar al menos un horario' });
+    }
+
+    const store = readStore();
+    store.settings.dailyTimes = times;
+
+    if (store.settings.autoPublish) {
+        const next = getNextDailyDate(new Date(), times);
+        store.settings.nextPublishAt = next ? next.toISOString() : null;
+    }
+
+    writeStore(store);
+
     res.json({ success: true, settings: store.settings });
 });
 
@@ -389,9 +476,28 @@ app.post('/api/automation/start', async (req, res) => {
             return res.status(400).json({ success: false, error: 'No hay publicaciones pendientes en la cola' });
         }
 
-        const startAt = req.body && req.body.startAt ? new Date(req.body.startAt) : new Date();
-        if (Number.isNaN(startAt.getTime())) {
-            return res.status(400).json({ success: false, error: 'Fecha de inicio inválida' });
+        const times = normalizeDailyTimes(
+            Array.isArray(req.body?.times) ? req.body.times : store.settings.dailyTimes
+        );
+
+        if (!times.length) {
+            return res.status(400).json({ success: false, error: 'Selecciona al menos un horario' });
+        }
+
+        store.settings.dailyTimes = times;
+
+        let startAt = null;
+        if (req.body?.startAt) {
+            const requested = new Date(req.body.startAt);
+            if (!Number.isNaN(requested.getTime())) startAt = requested;
+        }
+
+        if (!startAt) {
+            startAt = getNextDailyDate(new Date(), times);
+        }
+
+        if (!startAt) {
+            return res.status(400).json({ success: false, error: 'No se pudo calcular la próxima publicación' });
         }
 
         store.settings.autoPublish = true;
@@ -399,6 +505,7 @@ app.post('/api/automation/start', async (req, res) => {
         writeStore(store);
 
         console.log('▶ AUTOMATIZACIÓN INICIADA');
+        console.log('🕐 Horarios diarios:', store.settings.dailyTimes.join(', '));
         console.log('⏰ Primera publicación:', store.settings.nextPublishAt);
 
         res.json({ success: true, message: 'Automatización iniciada', settings: store.settings });
@@ -429,7 +536,7 @@ app.use('/api', (req, res) => {
     res.status(404).json({
         success: false,
         error: `Ruta API no encontrada: ${req.method} ${req.originalUrl}`,
-        serverVersion: '2.0.2'
+        serverVersion: '2.1.0'
     });
 });
 
@@ -441,7 +548,7 @@ setInterval(() => {
 app.listen(PORT, () => {
     console.log('');
     console.log('==========================================');
-    console.log('🚀 THREADS AI PUBLISHER V2.0.2');
+    console.log('🚀 THREADS AI PUBLISHER V2.1.0');
     console.log(`🌐 http://localhost:${PORT}`);
     console.log(`🩺 http://localhost:${PORT}/api/health`);
     console.log('==========================================');
