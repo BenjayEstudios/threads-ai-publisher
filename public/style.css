@@ -10,6 +10,9 @@
     --brand: #B83A2F;
     --brand-hover: #cf493d;
     --brand-soft: rgba(184, 58, 47, .14);
+    --action: #4aa8d8;
+    --action-hover: #62bce8;
+    --action-soft: rgba(74, 168, 216, .14);
     --success: #45c985;
     --success-soft: rgba(69, 201, 133, .14);
     --warning: #e7ae4f;
@@ -93,12 +96,48 @@ th { color: #7f8994; font-size: 12px; text-transform: uppercase; letter-spacing:
 .pill.published { background: var(--success-soft); color: var(--success); }
 .pill.error { background: var(--danger-soft); color: var(--danger); }
 .error-row td { background: rgba(237,113,130,.025); }
+
+/* Acciones compactas para publicaciones pendientes */
+.row-actions { display: flex; align-items: center; gap: 7px; min-width: 82px; }
+.icon-button {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    font-size: 16px;
+    line-height: 1;
+    box-shadow: none;
+}
+.icon-button:hover { transform: translateY(-1px); }
+.edit-button {
+    background: var(--action-soft);
+    border-color: rgba(74,168,216,.28);
+    color: var(--action);
+}
+.edit-button:hover {
+    background: rgba(74,168,216,.23);
+    border-color: rgba(98,188,232,.5);
+    color: var(--action-hover);
+    box-shadow: 0 5px 14px rgba(74,168,216,.12);
+}
 .delete-button, .retry-button { padding: 7px 9px; font-size: 12px; }
-.delete-button { background: #2a2023; color: #ef9ba7; }
-.delete-button:hover { background: #35252a; }
+.icon-button.delete-button {
+    background: var(--danger-soft);
+    border-color: rgba(237,113,130,.22);
+    color: var(--danger);
+}
+.icon-button.delete-button:hover {
+    background: rgba(237,113,130,.20);
+    border-color: rgba(237,113,130,.4);
+}
+.delete-button:not(.icon-button) { background: #2a2023; color: #ef9ba7; }
+.delete-button:not(.icon-button):hover { background: #35252a; }
 .retry-button { background: var(--brand-soft); color: #e17b70; }
 .retry-button:hover { background: rgba(184,58,47,.23); }
-.row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .row-error { display: block; color: var(--danger); margin-top: 6px; max-width: 500px; line-height: 1.4; }
 .date-cell { display: flex; gap: 7px; align-items: flex-start; min-width: 145px; color: #d8dde2; font-size: 13px; }
 .date-label { flex: 0 0 auto; }
