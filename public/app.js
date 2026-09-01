@@ -312,7 +312,7 @@ function renderPosts(posts, settings) {
 
         let action = '';
         if (post.status === 'pending') {
-            action = `<div class="row-actions"><button class="edit-button" onclick="editPost('${escapeJs(post.id)}', '${escapeJs(post.text)}')">✏️ Editar</button><button class="delete-button" onclick="deletePost('${escapeJs(post.id)}')">Eliminar</button></div>`;
+            action = `<div class="row-actions"><button class="icon-button edit-button" title="Editar publicación" aria-label="Editar publicación" onclick="editPost('${escapeJs(post.id)}', '${escapeJs(post.text)}')"><span aria-hidden="true">✎</span></button><button class="icon-button delete-button" title="Eliminar publicación" aria-label="Eliminar publicación" onclick="deletePost('${escapeJs(post.id)}')"><span aria-hidden="true">🗑</span></button></div>`;
         } else if (isError) {
             action = `<div class="row-actions"><button class="retry-button" onclick="retryPost('${escapeJs(post.id)}')">↻ Reintentar</button><button class="delete-button" onclick="deletePost('${escapeJs(post.id)}')">Eliminar</button></div>`;
         }
