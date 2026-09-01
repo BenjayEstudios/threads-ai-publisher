@@ -248,15 +248,16 @@ clearHistoryButton?.addEventListener('click', async (event) => {
     }
 });
 
-function renderPosts(posts) {
+function renderPosts(posts, settings) {
     if (!postsTable) return;
 
     const ordered = [...posts].reverse();
+    const schedule = buildScheduleMap(posts, settings);
 
     if (!ordered.length) {
         postsTable.innerHTML = `
             <tr>
-                <td colspan="4" class="empty">No hay publicaciones todavía.</td>
+                <td colspan="5" class="empty">No hay publicaciones todavía.</td>
             </tr>
         `;
         return;
@@ -265,6 +266,7 @@ function renderPosts(posts) {
     postsTable.innerHTML = ordered.map(post => {
         const isPending = post.status === 'pending';
         const isError = post.status === 'error';
+        const isPublished = post.status === 'published';
         const statusText = {
             pending: 'Pendiente',
             publishing: 'Publicando',
@@ -284,6 +286,9 @@ function renderPosts(posts) {
             `;
         }
 
+        const scheduledAt = post.scheduledAt || schedule.get(post.id) || null;
+        const publishedAt = isPublished ? post.publishedAt : null;
+
         return `
             <tr class="${isError ? 'error-row' : ''}">
                 <td>
@@ -294,12 +299,47 @@ function renderPosts(posts) {
                     <span class="pill ${escapeHtml(post.status)}">${statusText}</span>
                 </td>
                 <td>
-                    ${formatDate(post.publishedAt || post.scheduledAt || post.createdAt)}
+                    <div class="date-cell">
+                        <span class="date-label">${scheduledAt ? '📅' : '—'}</span>
+                        <span>${scheduledAt ? formatDate(scheduledAt) : 'Sin programar'}</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="date-cell">
+                        <span class="date-label">${publishedAt ? '✅' : '—'}</span>
+                        <span>${publishedAt ? formatDate(publishedAt) : '—'}</span>
+                    </div>
                 </td>
                 <td>${action}</td>
             </tr>
         `;
     }).join('');
+}
+
+function buildScheduleMap(posts, settings) {
+    const schedule = new Map();
+    const nextPublishAt = settings?.nextPublishAt;
+    const intervalMinutes = Number(settings?.intervalMinutes);
+
+    if (!nextPublishAt || !Number.isFinite(intervalMinutes) || intervalMinutes <= 0) {
+        return schedule;
+    }
+
+    const nextDate = new Date(nextPublishAt);
+    if (Number.isNaN(nextDate.getTime())) return schedule;
+
+    const pendingPosts = posts
+        .filter(post => post.status === 'pending')
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    pendingPosts.forEach((post, index) => {
+        const scheduled = new Date(
+            nextDate.getTime() + index * intervalMinutes * 60 * 1000
+        );
+        schedule.set(post.id, scheduled.toISOString());
+    });
+
+    return schedule;
 }
 
 async function loadState() {
@@ -310,7 +350,7 @@ async function loadState() {
         pendingCount.textContent = stats.pending;
         publishedCount.textContent = stats.published;
         errorCount.textContent = stats.errors;
-        renderPosts(posts);
+        renderPosts(posts, settings);
 
         if (settings.autoPublish) {
             automationBadge.textContent = '▶ Activo';
