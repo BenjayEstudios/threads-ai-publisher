@@ -48,38 +48,45 @@
             <div class="panel-title">
                 <div>
                     <h2>⏰ Publicación automática</h2>
-                    <p>Define cuándo empieza la cola y cada cuánto se publica una nota.</p>
+                    <p>Elige los horarios exactos en los que quieres publicar cada día.</p>
+                </div>
+            </div>
+
+            <div class="daily-schedule">
+                <div class="schedule-header">
+                    <strong>Horarios diarios</strong>
+                    <span id="scheduleSummary">0 horarios seleccionados</span>
+                </div>
+
+                <div class="schedule-slots">
+                    <label class="time-option"><input type="checkbox" class="schedule-time" value="08:00"><span>08:00</span></label>
+                    <label class="time-option"><input type="checkbox" class="schedule-time" value="10:00"><span>10:00</span></label>
+                    <label class="time-option"><input type="checkbox" class="schedule-time" value="12:00"><span>12:00</span></label>
+                    <label class="time-option"><input type="checkbox" class="schedule-time" value="14:00"><span>14:00</span></label>
+                    <label class="time-option"><input type="checkbox" class="schedule-time" value="16:00"><span>16:00</span></label>
+                    <label class="time-option"><input type="checkbox" class="schedule-time" value="18:00"><span>18:00</span></label>
+                    <label class="time-option"><input type="checkbox" class="schedule-time" value="20:00"><span>20:00</span></label>
+                    <label class="time-option"><input type="checkbox" class="schedule-time" value="22:00"><span>22:00</span></label>
+                </div>
+
+                <div class="custom-time-row">
+                    <label>
+                        Agregar otra hora
+                        <input id="customTime" type="time" value="">
+                    </label>
+                    <button id="addCustomTimeButton" type="button" class="secondary">➕ Agregar horario</button>
                 </div>
             </div>
 
             <div class="scheduler-controls">
-                <label>
-                    Publicar cada
-                    <input id="intervalValue" type="number" min="1" value="1">
-                </label>
-
-                <label>
-                    Unidad
-                    <select id="intervalUnit">
-                        <option value="minutes">minutos</option>
-                        <option value="hours" selected>horas</option>
-                        <option value="days">días</option>
-                    </select>
-                </label>
-
-                <label>
-                    Primera publicación
-                    <input id="startTime" type="time">
-                </label>
-
-                <button id="saveSettingsButton" type="button" class="secondary">Guardar intervalo</button>
+                <button id="saveScheduleButton" type="button" class="secondary">💾 Guardar horarios</button>
                 <button id="startButton" type="button" class="primary">▶ Iniciar</button>
                 <button id="pauseButton" type="button" class="warning">⏸ Pausar</button>
             </div>
 
             <div class="schedule-help">
-                La hora elegida se toma como la próxima hora de inicio. Si ya pasó hoy, se programará para mañana.
-                Ejemplo: <strong>08:00 + cada 12 horas → 08:00, 20:00, 08:00...</strong>
+                Puedes seleccionar varios horarios. Por ejemplo, <strong>08:00, 14:00 y 20:00</strong> publicará tres veces al día.
+                La primera publicación será el siguiente horario disponible y luego continuará diariamente.
             </div>
 
             <div id="schedulerStatus" class="status"></div>
