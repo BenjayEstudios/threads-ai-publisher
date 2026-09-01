@@ -5,10 +5,9 @@ const counter = $('#counter');
 const publishButton = $('#publishButton');
 const queueText = $('#queueText');
 const addQueueButton = $('#addQueueButton');
-const intervalValue = $('#intervalValue');
-const intervalUnit = $('#intervalUnit');
-const startTime = $('#startTime');
-const saveSettingsButton = $('#saveSettingsButton');
+const saveScheduleButton = $('#saveScheduleButton');
+const addCustomTimeButton = $('#addCustomTimeButton');
+const customTime = $('#customTime');
 const startButton = $('#startButton');
 const pauseButton = $('#pauseButton');
 const postsTable = $('#postsTable');
@@ -21,6 +20,7 @@ const automationBadge = $('#automationBadge');
 const manualStatus = $('#manualStatus');
 const queueStatus = $('#queueStatus');
 const schedulerStatus = $('#schedulerStatus');
+const scheduleSummary = $('#scheduleSummary');
 
 async function api(url, options = {}) {
     const method = options.method || 'GET';
@@ -39,7 +39,7 @@ async function api(url, options = {}) {
 
     try {
         data = JSON.parse(text);
-    } catch (error) {
+    } catch {
         console.error('❌ Respuesta no JSON:', text);
         throw new Error(`El servidor respondió algo inesperado (${response.status})`);
     }
@@ -51,9 +51,14 @@ async function api(url, options = {}) {
     return data;
 }
 
+function setStatus(element, message, type = '') {
+    if (!element) return;
+    element.textContent = message;
+    element.className = type ? `status ${type}` : 'status';
+}
+
 function updateCounter() {
-    if (!postText || !counter) return;
-    counter.textContent = postText.value.length;
+    if (postText && counter) counter.textContent = postText.value.length;
 }
 
 postText?.addEventListener('input', updateCounter);
@@ -62,31 +67,22 @@ publishButton?.addEventListener('click', async (event) => {
     event.preventDefault();
     const text = postText.value.trim();
 
-    if (!text) {
-        setStatus(manualStatus, 'Escribe una publicación.', 'error');
-        return;
-    }
-
-    if (text.length > 500) {
-        setStatus(manualStatus, 'La publicación supera los 500 caracteres.', 'error');
-        return;
-    }
+    if (!text) return setStatus(manualStatus, 'Escribe una publicación.', 'error');
+    if (text.length > 500) return setStatus(manualStatus, 'La publicación supera los 500 caracteres.', 'error');
 
     publishButton.disabled = true;
-    setStatus(manualStatus, 'Publicando...', '');
+    setStatus(manualStatus, 'Publicando...');
 
     try {
         const data = await api('/api/publish', {
             method: 'POST',
             body: JSON.stringify({ text })
         });
-
         setStatus(manualStatus, `✅ Publicado correctamente. ID: ${data.postId}`, 'success');
         postText.value = '';
         updateCounter();
         await loadState();
     } catch (error) {
-        console.error('❌ Publicación manual:', error);
         setStatus(manualStatus, `❌ ${error.message}`, 'error');
     } finally {
         publishButton.disabled = false;
@@ -97,84 +93,112 @@ addQueueButton?.addEventListener('click', async (event) => {
     event.preventDefault();
     const text = queueText.value.trim();
 
-    if (!text) {
-        setStatus(queueStatus, 'Escribe al menos una publicación.', 'error');
-        return;
-    }
+    if (!text) return setStatus(queueStatus, 'Escribe al menos una publicación.', 'error');
 
     addQueueButton.disabled = true;
-    setStatus(queueStatus, 'Agregando a la cola...', '');
+    setStatus(queueStatus, 'Agregando a la cola...');
 
     try {
         const data = await api('/api/queue', {
             method: 'POST',
             body: JSON.stringify({ text })
         });
-
         setStatus(queueStatus, `✅ ${data.added} publicación(es) agregada(s).`, 'success');
         queueText.value = '';
         await loadState();
     } catch (error) {
-        console.error('❌ Cola:', error);
         setStatus(queueStatus, `❌ ${error.message}`, 'error');
     } finally {
         addQueueButton.disabled = false;
     }
 });
 
-saveSettingsButton?.addEventListener('click', async (event) => {
-    event.preventDefault();
-    const value = Number(intervalValue.value);
-    const unit = intervalUnit.value;
+function getSelectedTimes() {
+    return [...document.querySelectorAll('.schedule-time:checked')]
+        .map(input => input.value)
+        .sort();
+}
 
-    if (!Number.isFinite(value) || value <= 0) {
-        setStatus(schedulerStatus, 'El intervalo debe ser mayor que 0.', 'error');
+function updateScheduleSummary() {
+    const times = getSelectedTimes();
+    if (scheduleSummary) {
+        scheduleSummary.textContent = times.length
+            ? `${times.length} horario(s): ${times.join(' · ')}`
+            : '0 horarios seleccionados';
+    }
+}
+
+document.querySelectorAll('.schedule-time').forEach(input => {
+    input.addEventListener('change', updateScheduleSummary);
+});
+
+addCustomTimeButton?.addEventListener('click', () => {
+    const value = customTime.value;
+    if (!value) {
+        setStatus(schedulerStatus, 'Selecciona una hora para agregarla.', 'error');
         return;
     }
 
-    saveSettingsButton.disabled = true;
+    const exists = [...document.querySelectorAll('.schedule-time')].some(input => input.value === value);
+    if (exists) {
+        setStatus(schedulerStatus, 'Ese horario ya está disponible.', 'error');
+        return;
+    }
 
+    const label = document.createElement('label');
+    label.className = 'time-option custom-time-option';
+    label.innerHTML = `<input type="checkbox" class="schedule-time" value="${escapeHtml(value)}" checked><span>${escapeHtml(value)}</span>`;
+    document.querySelector('.schedule-slots').appendChild(label);
+
+    const checkbox = label.querySelector('input');
+    checkbox.addEventListener('change', updateScheduleSummary);
+    customTime.value = '';
+    updateScheduleSummary();
+});
+
+saveScheduleButton?.addEventListener('click', async () => {
+    const times = getSelectedTimes();
+    if (!times.length) {
+        setStatus(schedulerStatus, 'Selecciona al menos un horario.', 'error');
+        return;
+    }
+
+    saveScheduleButton.disabled = true;
     try {
-        const data = await api('/api/settings', {
+        const data = await api('/api/schedule', {
             method: 'PUT',
-            body: JSON.stringify({ value, unit })
+            body: JSON.stringify({ times })
         });
-
-        setStatus(schedulerStatus, `✅ Intervalo guardado: ${formatInterval(data.settings.intervalMinutes)}`, 'success');
+        setStatus(schedulerStatus, `✅ Horarios guardados: ${data.settings.dailyTimes.join(', ')}`, 'success');
         await loadState();
     } catch (error) {
-        console.error('❌ Configuración:', error);
         setStatus(schedulerStatus, `❌ ${error.message}`, 'error');
     } finally {
-        saveSettingsButton.disabled = false;
+        saveScheduleButton.disabled = false;
     }
 });
 
 startButton?.addEventListener('click', async (event) => {
     event.preventDefault();
-    console.log('🔥 BOTÓN INICIAR PRESIONADO');
+    const times = getSelectedTimes();
 
-    const selectedStartAt = buildStartAtFromTime();
-    if (!selectedStartAt) {
-        setStatus(schedulerStatus, 'Selecciona una hora válida para la primera publicación.', 'error');
+    if (!times.length) {
+        setStatus(schedulerStatus, 'Selecciona al menos un horario.', 'error');
         return;
     }
 
-    console.log('📅 Primera publicación programada para:', selectedStartAt);
     startButton.disabled = true;
-    setStatus(schedulerStatus, 'Programando automatización...', '');
+    setStatus(schedulerStatus, 'Programando automatización...');
 
     try {
         const data = await api('/api/automation/start', {
             method: 'POST',
-            body: JSON.stringify({ startAt: selectedStartAt.toISOString() })
+            body: JSON.stringify({ times })
         });
 
-        console.log('✅ Automatización iniciada:', data);
         setStatus(schedulerStatus, `▶ Automatización iniciada. Primera publicación: ${formatDate(data.settings.nextPublishAt)}`, 'success');
         await loadState();
     } catch (error) {
-        console.error('❌ Error iniciando automatización:', error);
         setStatus(schedulerStatus, `❌ ${error.message}`, 'error');
     } finally {
         startButton.disabled = false;
@@ -186,15 +210,10 @@ pauseButton?.addEventListener('click', async (event) => {
     pauseButton.disabled = true;
 
     try {
-        await api('/api/automation/pause', {
-            method: 'POST',
-            body: JSON.stringify({})
-        });
-
+        await api('/api/automation/pause', { method: 'POST', body: JSON.stringify({}) });
         setStatus(schedulerStatus, '⏸ Automatización pausada.', 'success');
         await loadState();
     } catch (error) {
-        console.error('❌ Pausa:', error);
         setStatus(schedulerStatus, `❌ ${error.message}`, 'error');
     } finally {
         pauseButton.disabled = false;
@@ -203,12 +222,8 @@ pauseButton?.addEventListener('click', async (event) => {
 
 async function deletePost(id) {
     if (!confirm('¿Eliminar esta publicación?')) return;
-
     try {
-        await api(`/api/queue/${encodeURIComponent(id)}`, {
-            method: 'DELETE'
-        });
-
+        await api(`/api/queue/${encodeURIComponent(id)}`, { method: 'DELETE' });
         await loadState();
     } catch (error) {
         alert(`No se pudo eliminar: ${error.message}`);
@@ -217,13 +232,11 @@ async function deletePost(id) {
 
 async function retryPost(id) {
     if (!confirm('¿Volver a poner esta publicación en la cola?')) return;
-
     try {
         await api(`/api/queue/${encodeURIComponent(id)}/retry`, {
             method: 'POST',
             body: JSON.stringify({})
         });
-
         setStatus(schedulerStatus, '🔄 Publicación devuelta a la cola.', 'success');
         await loadState();
     } catch (error) {
@@ -234,9 +247,7 @@ async function retryPost(id) {
 window.deletePost = deletePost;
 window.retryPost = retryPost;
 
-clearHistoryButton?.addEventListener('click', async (event) => {
-    event.preventDefault();
-
+clearHistoryButton?.addEventListener('click', async () => {
     if (!confirm('¿Eliminar todo el historial de publicaciones y errores?')) return;
 
     try {
@@ -255,16 +266,11 @@ function renderPosts(posts, settings) {
     const schedule = buildScheduleMap(posts, settings);
 
     if (!ordered.length) {
-        postsTable.innerHTML = `
-            <tr>
-                <td colspan="5" class="empty">No hay publicaciones todavía.</td>
-            </tr>
-        `;
+        postsTable.innerHTML = `<tr><td colspan="5" class="empty">No hay publicaciones todavía.</td></tr>`;
         return;
     }
 
     postsTable.innerHTML = ordered.map(post => {
-        const isPending = post.status === 'pending';
         const isError = post.status === 'error';
         const isPublished = post.status === 'published';
         const statusText = {
@@ -275,15 +281,10 @@ function renderPosts(posts, settings) {
         }[post.status] || post.status;
 
         let action = '';
-        if (isPending) {
+        if (post.status === 'pending') {
             action = `<button class="delete-button" onclick="deletePost('${escapeJs(post.id)}')">Eliminar</button>`;
         } else if (isError) {
-            action = `
-                <div class="row-actions">
-                    <button class="retry-button" onclick="retryPost('${escapeJs(post.id)}')">↻ Reintentar</button>
-                    <button class="delete-button" onclick="deletePost('${escapeJs(post.id)}')">Eliminar</button>
-                </div>
-            `;
+            action = `<div class="row-actions"><button class="retry-button" onclick="retryPost('${escapeJs(post.id)}')">↻ Reintentar</button><button class="delete-button" onclick="deletePost('${escapeJs(post.id)}')">Eliminar</button></div>`;
         }
 
         const scheduledAt = post.scheduledAt || schedule.get(post.id) || null;
@@ -291,55 +292,52 @@ function renderPosts(posts, settings) {
 
         return `
             <tr class="${isError ? 'error-row' : ''}">
-                <td>
-                    <div class="post-text">${escapeHtml(post.text)}</div>
-                    ${post.error ? `<div class="row-error">⚠ ${escapeHtml(post.error)}</div>` : ''}
-                </td>
-                <td>
-                    <span class="pill ${escapeHtml(post.status)}">${statusText}</span>
-                </td>
-                <td>
-                    <div class="date-cell">
-                        <span class="date-label">${scheduledAt ? '📅' : '—'}</span>
-                        <span>${scheduledAt ? formatDate(scheduledAt) : 'Sin programar'}</span>
-                    </div>
-                </td>
-                <td>
-                    <div class="date-cell">
-                        <span class="date-label">${publishedAt ? '✅' : '—'}</span>
-                        <span>${publishedAt ? formatDate(publishedAt) : '—'}</span>
-                    </div>
-                </td>
+                <td><div class="post-text">${escapeHtml(post.text)}</div>${post.error ? `<div class="row-error">⚠ ${escapeHtml(post.error)}</div>` : ''}</td>
+                <td><span class="pill ${escapeHtml(post.status)}">${statusText}</span></td>
+                <td><div class="date-cell"><span class="date-label">${scheduledAt ? '📅' : '—'}</span><span>${scheduledAt ? formatDate(scheduledAt) : 'Sin programar'}</span></div></td>
+                <td><div class="date-cell"><span class="date-label">${publishedAt ? '✅' : '—'}</span><span>${publishedAt ? formatDate(publishedAt) : '—'}</span></div></td>
                 <td>${action}</td>
-            </tr>
-        `;
+            </tr>`;
     }).join('');
 }
 
 function buildScheduleMap(posts, settings) {
     const schedule = new Map();
-    const nextPublishAt = settings?.nextPublishAt;
-    const intervalMinutes = Number(settings?.intervalMinutes);
+    const times = Array.isArray(settings?.dailyTimes) ? [...settings.dailyTimes].sort() : [];
+    if (!settings?.autoPublish || !times.length) return schedule;
 
-    if (!nextPublishAt || !Number.isFinite(intervalMinutes) || intervalMinutes <= 0) {
-        return schedule;
-    }
-
-    const nextDate = new Date(nextPublishAt);
-    if (Number.isNaN(nextDate.getTime())) return schedule;
+    let cursor = settings.nextPublishAt ? new Date(settings.nextPublishAt) : null;
+    if (!cursor || Number.isNaN(cursor.getTime())) return schedule;
 
     const pendingPosts = posts
         .filter(post => post.status === 'pending')
         .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-    pendingPosts.forEach((post, index) => {
-        const scheduled = new Date(
-            nextDate.getTime() + index * intervalMinutes * 60 * 1000
-        );
-        schedule.set(post.id, scheduled.toISOString());
+    pendingPosts.forEach(post => {
+        schedule.set(post.id, cursor.toISOString());
+        cursor = nextDailyDate(cursor, times);
     });
 
     return schedule;
+}
+
+function nextDailyDate(fromDate, times) {
+    const base = new Date(fromDate);
+    base.setSeconds(0, 0);
+
+    for (let dayOffset = 0; dayOffset <= 7; dayOffset++) {
+        const day = new Date(base);
+        day.setDate(base.getDate() + dayOffset);
+
+        for (const time of times) {
+            const [hours, minutes] = String(time).split(':').map(Number);
+            const candidate = new Date(day);
+            candidate.setHours(hours, minutes, 0, 0);
+            if (candidate.getTime() > fromDate.getTime()) return candidate;
+        }
+    }
+
+    return null;
 }
 
 async function loadState() {
@@ -364,64 +362,18 @@ async function loadState() {
             ? formatDate(settings.nextPublishAt)
             : '—';
 
-        syncIntervalInputs(settings.intervalMinutes);
+        syncScheduleInputs(settings.dailyTimes || []);
     } catch (error) {
         console.error('❌ Error cargando estado:', error);
     }
 }
 
-function syncIntervalInputs(minutes) {
-    const value = Number(minutes);
-    if (!Number.isFinite(value) || value <= 0) return;
-
-    if (value % 1440 === 0) {
-        intervalValue.value = value / 1440;
-        intervalUnit.value = 'days';
-    } else if (value % 60 === 0) {
-        intervalValue.value = value / 60;
-        intervalUnit.value = 'hours';
-    } else {
-        intervalValue.value = value;
-        intervalUnit.value = 'minutes';
-    }
-}
-
-function buildStartAtFromTime() {
-    if (!startTime || !startTime.value) return new Date();
-
-    const match = /^(\d{2}):(\d{2})$/.exec(startTime.value);
-    if (!match) return null;
-
-    const hours = Number(match[1]);
-    const minutes = Number(match[2]);
-    if (hours > 23 || minutes > 59) return null;
-
-    const now = new Date();
-    const candidate = new Date(now);
-    candidate.setHours(hours, minutes, 0, 0);
-
-    if (candidate.getTime() <= now.getTime()) {
-        candidate.setDate(candidate.getDate() + 1);
-    }
-
-    return candidate;
-}
-
-function setDefaultStartTime() {
-    if (!startTime || startTime.value) return;
-
-    const now = new Date();
-    now.setMinutes(now.getMinutes() + 5);
-
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    startTime.value = `${hours}:${minutes}`;
-}
-
-function setStatus(element, message, type) {
-    if (!element) return;
-    element.textContent = message;
-    element.className = type ? `status ${type}` : 'status';
+function syncScheduleInputs(times) {
+    const normalized = new Set(times);
+    document.querySelectorAll('.schedule-time').forEach(input => {
+        input.checked = normalized.has(input.value);
+    });
+    updateScheduleSummary();
 }
 
 function formatDate(date) {
@@ -431,16 +383,9 @@ function formatDate(date) {
 
     return parsed.toLocaleString('es-CL', {
         dateStyle: 'short',
-        timeStyle: 'short'
+        timeStyle: 'short',
+        hour12: false
     });
-}
-
-function formatInterval(minutes) {
-    const value = Number(minutes);
-    if (!Number.isFinite(value)) return '—';
-    if (value % 1440 === 0) return `${value / 1440} día(s)`;
-    if (value % 60 === 0) return `${value / 60} hora(s)`;
-    return `${value} minuto(s)`;
 }
 
 function escapeHtml(value) {
@@ -453,12 +398,10 @@ function escapeHtml(value) {
 }
 
 function escapeJs(value) {
-    return String(value)
-        .replaceAll('\\', '\\\\')
-        .replaceAll("'", "\\'");
+    return String(value).replaceAll('\\', '\\\\').replaceAll("'", "\\'");
 }
 
-setDefaultStartTime();
 updateCounter();
+updateScheduleSummary();
 loadState();
 setInterval(loadState, 5000);
