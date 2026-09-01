@@ -13,12 +13,12 @@
     {
       "id": "1788202349775-ag1mvb",
       "text": "No necesitas tener todo resuelto. Solo necesitas dar el siguiente paso.",
-      "status": "pending",
+      "status": "error",
       "createdAt": "2026-08-31T18:52:29.775Z",
-      "scheduledAt": null,
+      "scheduledAt": "2026-09-01T12:00:02.685Z",
       "publishedAt": null,
       "threadsPostId": null,
-      "error": null
+      "error": "Error validating access token: Session has expired on Monday, 31-Aug-26 12:00:00 PDT. The current time is Tuesday, 01-Sep-26 05:00:02 PDT."
     },
     {
       "id": "1788202355663-j3bue2",
@@ -314,6 +314,6 @@
   "settings": {
     "autoPublish": true,
     "intervalMinutes": 720,
-    "nextPublishAt": "2026-09-01T12:00:00.000Z"
+    "nextPublishAt": "2026-09-02T00:00:02.993Z"
   }
 }
