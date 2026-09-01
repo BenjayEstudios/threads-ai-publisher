@@ -3,33 +3,24 @@ const $ = (selector) => document.querySelector(selector);
 const postText = $('#postText');
 const counter = $('#counter');
 const publishButton = $('#publishButton');
-
 const queueText = $('#queueText');
 const addQueueButton = $('#addQueueButton');
-
 const intervalValue = $('#intervalValue');
 const intervalUnit = $('#intervalUnit');
 const startTime = $('#startTime');
 const saveSettingsButton = $('#saveSettingsButton');
 const startButton = $('#startButton');
 const pauseButton = $('#pauseButton');
-
 const postsTable = $('#postsTable');
 const clearHistoryButton = $('#clearHistoryButton');
-
 const pendingCount = $('#pendingCount');
 const publishedCount = $('#publishedCount');
 const errorCount = $('#errorCount');
 const nextPublish = $('#nextPublish');
-
 const automationBadge = $('#automationBadge');
 const manualStatus = $('#manualStatus');
 const queueStatus = $('#queueStatus');
 const schedulerStatus = $('#schedulerStatus');
-
-// ============================================================
-// API
-// ============================================================
 
 async function api(url, options = {}) {
     const method = options.method || 'GET';
@@ -60,10 +51,6 @@ async function api(url, options = {}) {
     return data;
 }
 
-// ============================================================
-// CONTADOR
-// ============================================================
-
 function updateCounter() {
     if (!postText || !counter) return;
     counter.textContent = postText.value.length;
@@ -71,13 +58,8 @@ function updateCounter() {
 
 postText?.addEventListener('input', updateCounter);
 
-// ============================================================
-// PUBLICACIÓN MANUAL
-// ============================================================
-
 publishButton?.addEventListener('click', async (event) => {
     event.preventDefault();
-
     const text = postText.value.trim();
 
     if (!text) {
@@ -111,13 +93,8 @@ publishButton?.addEventListener('click', async (event) => {
     }
 });
 
-// ============================================================
-// AGREGAR A COLA
-// ============================================================
-
 addQueueButton?.addEventListener('click', async (event) => {
     event.preventDefault();
-
     const text = queueText.value.trim();
 
     if (!text) {
@@ -145,13 +122,8 @@ addQueueButton?.addEventListener('click', async (event) => {
     }
 });
 
-// ============================================================
-// GUARDAR INTERVALO
-// ============================================================
-
 saveSettingsButton?.addEventListener('click', async (event) => {
     event.preventDefault();
-
     const value = Number(intervalValue.value);
     const unit = intervalUnit.value;
 
@@ -178,43 +150,28 @@ saveSettingsButton?.addEventListener('click', async (event) => {
     }
 });
 
-// ============================================================
-// INICIAR AUTOMATIZACIÓN
-// ============================================================
-
 startButton?.addEventListener('click', async (event) => {
     event.preventDefault();
-
     console.log('🔥 BOTÓN INICIAR PRESIONADO');
 
     const selectedStartAt = buildStartAtFromTime();
-
     if (!selectedStartAt) {
         setStatus(schedulerStatus, 'Selecciona una hora válida para la primera publicación.', 'error');
         return;
     }
 
     console.log('📅 Primera publicación programada para:', selectedStartAt);
-
     startButton.disabled = true;
     setStatus(schedulerStatus, 'Programando automatización...', '');
 
     try {
         const data = await api('/api/automation/start', {
             method: 'POST',
-            body: JSON.stringify({
-                startAt: selectedStartAt.toISOString()
-            })
+            body: JSON.stringify({ startAt: selectedStartAt.toISOString() })
         });
 
         console.log('✅ Automatización iniciada:', data);
-
-        setStatus(
-            schedulerStatus,
-            `▶ Automatización iniciada. Primera publicación: ${formatDate(data.settings.nextPublishAt)}`,
-            'success'
-        );
-
+        setStatus(schedulerStatus, `▶ Automatización iniciada. Primera publicación: ${formatDate(data.settings.nextPublishAt)}`, 'success');
         await loadState();
     } catch (error) {
         console.error('❌ Error iniciando automatización:', error);
@@ -224,13 +181,8 @@ startButton?.addEventListener('click', async (event) => {
     }
 });
 
-// ============================================================
-// PAUSAR AUTOMATIZACIÓN
-// ============================================================
-
 pauseButton?.addEventListener('click', async (event) => {
     event.preventDefault();
-
     pauseButton.disabled = true;
 
     try {
@@ -249,10 +201,6 @@ pauseButton?.addEventListener('click', async (event) => {
     }
 });
 
-// ============================================================
-// ELIMINAR PUBLICACIÓN
-// ============================================================
-
 async function deletePost(id) {
     if (!confirm('¿Eliminar esta publicación?')) return;
 
@@ -267,11 +215,24 @@ async function deletePost(id) {
     }
 }
 
-window.deletePost = deletePost;
+async function retryPost(id) {
+    if (!confirm('¿Volver a poner esta publicación en la cola?')) return;
 
-// ============================================================
-// LIMPIAR HISTORIAL
-// ============================================================
+    try {
+        await api(`/api/queue/${encodeURIComponent(id)}/retry`, {
+            method: 'POST',
+            body: JSON.stringify({})
+        });
+
+        setStatus(schedulerStatus, '🔄 Publicación devuelta a la cola.', 'success');
+        await loadState();
+    } catch (error) {
+        alert(`No se pudo reintentar: ${error.message}`);
+    }
+}
+
+window.deletePost = deletePost;
+window.retryPost = retryPost;
 
 clearHistoryButton?.addEventListener('click', async (event) => {
     event.preventDefault();
@@ -279,20 +240,13 @@ clearHistoryButton?.addEventListener('click', async (event) => {
     if (!confirm('¿Eliminar todo el historial de publicaciones y errores?')) return;
 
     try {
-        await api('/api/history', {
-            method: 'DELETE'
-        });
-
+        await api('/api/history', { method: 'DELETE' });
         setStatus(schedulerStatus, '✅ Historial limpiado.', 'success');
         await loadState();
     } catch (error) {
         setStatus(schedulerStatus, `❌ ${error.message}`, 'error');
     }
 });
-
-// ============================================================
-// TABLA DE PUBLICACIONES
-// ============================================================
 
 function renderPosts(posts) {
     if (!postsTable) return;
@@ -310,6 +264,7 @@ function renderPosts(posts) {
 
     postsTable.innerHTML = ordered.map(post => {
         const isPending = post.status === 'pending';
+        const isError = post.status === 'error';
         const statusText = {
             pending: 'Pendiente',
             publishing: 'Publicando',
@@ -317,11 +272,23 @@ function renderPosts(posts) {
             error: 'Error'
         }[post.status] || post.status;
 
+        let action = '';
+        if (isPending) {
+            action = `<button class="delete-button" onclick="deletePost('${escapeJs(post.id)}')">Eliminar</button>`;
+        } else if (isError) {
+            action = `
+                <div class="row-actions">
+                    <button class="retry-button" onclick="retryPost('${escapeJs(post.id)}')">↻ Reintentar</button>
+                    <button class="delete-button" onclick="deletePost('${escapeJs(post.id)}')">Eliminar</button>
+                </div>
+            `;
+        }
+
         return `
-            <tr>
+            <tr class="${isError ? 'error-row' : ''}">
                 <td>
                     <div class="post-text">${escapeHtml(post.text)}</div>
-                    ${post.error ? `<div class="row-error">${escapeHtml(post.error)}</div>` : ''}
+                    ${post.error ? `<div class="row-error">⚠ ${escapeHtml(post.error)}</div>` : ''}
                 </td>
                 <td>
                     <span class="pill ${escapeHtml(post.status)}">${statusText}</span>
@@ -329,17 +296,11 @@ function renderPosts(posts) {
                 <td>
                     ${formatDate(post.publishedAt || post.scheduledAt || post.createdAt)}
                 </td>
-                <td>
-                    ${isPending ? `<button class="delete-button" onclick="deletePost('${escapeJs(post.id)}')">Eliminar</button>` : ''}
-                </td>
+                <td>${action}</td>
             </tr>
         `;
     }).join('');
 }
-
-// ============================================================
-// ESTADO
-// ============================================================
 
 async function loadState() {
     try {
@@ -349,18 +310,17 @@ async function loadState() {
         pendingCount.textContent = stats.pending;
         publishedCount.textContent = stats.published;
         errorCount.textContent = stats.errors;
-
         renderPosts(posts);
 
         if (settings.autoPublish) {
             automationBadge.textContent = '▶ Activo';
             automationBadge.className = 'badge active';
         } else {
-            automationBadge.textContent = '⏸ Pausado';
-            automationBadge.className = 'badge paused';
+            automationBadge.textContent = stats.errors > 0 ? '⚠️ Pausado por error' : '⏸ Pausado';
+            automationBadge.className = stats.errors > 0 ? 'badge error-badge' : 'badge paused';
         }
 
-        nextPublish.textContent = settings.nextPublishAt
+        nextPublish.textContent = settings.autoPublish && settings.nextPublishAt
             ? formatDate(settings.nextPublishAt)
             : '—';
 
@@ -386,26 +346,18 @@ function syncIntervalInputs(minutes) {
     }
 }
 
-// ============================================================
-// HORA DE INICIO
-// ============================================================
-
 function buildStartAtFromTime() {
-    if (!startTime || !startTime.value) {
-        return new Date();
-    }
+    if (!startTime || !startTime.value) return new Date();
 
     const match = /^(\d{2}):(\d{2})$/.exec(startTime.value);
     if (!match) return null;
 
     const hours = Number(match[1]);
     const minutes = Number(match[2]);
-
     if (hours > 23 || minutes > 59) return null;
 
     const now = new Date();
     const candidate = new Date(now);
-
     candidate.setHours(hours, minutes, 0, 0);
 
     if (candidate.getTime() <= now.getTime()) {
@@ -423,13 +375,8 @@ function setDefaultStartTime() {
 
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
-
     startTime.value = `${hours}:${minutes}`;
 }
-
-// ============================================================
-// UTILIDADES
-// ============================================================
 
 function setStatus(element, message, type) {
     if (!element) return;
@@ -439,7 +386,6 @@ function setStatus(element, message, type) {
 
 function formatDate(date) {
     if (!date) return '—';
-
     const parsed = new Date(date);
     if (Number.isNaN(parsed.getTime())) return '—';
 
@@ -451,7 +397,6 @@ function formatDate(date) {
 
 function formatInterval(minutes) {
     const value = Number(minutes);
-
     if (!Number.isFinite(value)) return '—';
     if (value % 1440 === 0) return `${value / 1440} día(s)`;
     if (value % 60 === 0) return `${value / 60} hora(s)`;
@@ -472,10 +417,6 @@ function escapeJs(value) {
         .replaceAll('\\', '\\\\')
         .replaceAll("'", "\\'");
 }
-
-// ============================================================
-// INICIO
-// ============================================================
 
 setDefaultStartTime();
 updateCounter();
