@@ -230,6 +230,35 @@ async function deletePost(id) {
     }
 }
 
+async function editPost(id, currentText) {
+    const current = String(currentText || '').trim();
+    const edited = prompt('Editar texto de la publicación:', current);
+
+    if (edited === null) return;
+
+    const text = edited.trim();
+    if (!text) {
+        alert('El texto no puede estar vacío.');
+        return;
+    }
+
+    if (text.length > 500) {
+        alert('El texto supera los 500 caracteres.');
+        return;
+    }
+
+    try {
+        await api(`/api/queue/${encodeURIComponent(id)}`, {
+            method: 'PUT',
+            body: JSON.stringify({ text })
+        });
+        setStatus(schedulerStatus, '✏️ Publicación editada correctamente.', 'success');
+        await loadState();
+    } catch (error) {
+        alert(`No se pudo editar: ${error.message}`);
+    }
+}
+
 async function retryPost(id) {
     if (!confirm('¿Volver a poner esta publicación en la cola?')) return;
     try {
@@ -245,6 +274,7 @@ async function retryPost(id) {
 }
 
 window.deletePost = deletePost;
+window.editPost = editPost;
 window.retryPost = retryPost;
 
 clearHistoryButton?.addEventListener('click', async () => {
@@ -282,7 +312,7 @@ function renderPosts(posts, settings) {
 
         let action = '';
         if (post.status === 'pending') {
-            action = `<button class="delete-button" onclick="deletePost('${escapeJs(post.id)}')">Eliminar</button>`;
+            action = `<div class="row-actions"><button class="edit-button" onclick="editPost('${escapeJs(post.id)}', '${escapeJs(post.text)}')">✏️ Editar</button><button class="delete-button" onclick="deletePost('${escapeJs(post.id)}')">Eliminar</button></div>`;
         } else if (isError) {
             action = `<div class="row-actions"><button class="retry-button" onclick="retryPost('${escapeJs(post.id)}')">↻ Reintentar</button><button class="delete-button" onclick="deletePost('${escapeJs(post.id)}')">Eliminar</button></div>`;
         }
@@ -398,7 +428,7 @@ function escapeHtml(value) {
 }
 
 function escapeJs(value) {
-    return String(value).replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+    return String(value).replaceAll('\\', '\\\\').replaceAll("'", "\\'").replaceAll('\n', '\\n').replaceAll('\r', '\\r');
 }
 
 updateCounter();
