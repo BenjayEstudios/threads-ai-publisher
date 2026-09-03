@@ -9,6 +9,8 @@ const PORT = process.env.PORT || 3000;
 const THREADS_API = 'https://graph.threads.net/v1.0';
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'store.json');
+const INSIGHTS_INTERVAL_MS = 10 * 60 * 1000;
+const INSIGHTS_METRICS = (process.env.THREADS_INSIGHTS_METRICS || 'views,likes,replies,reposts,quotes').split(',').map(v => v.trim()).filter(Boolean);
 
 app.use(express.json({ limit: '1mb' }));
 app.use((req, res, next) => {
@@ -87,6 +89,7 @@ function createQueuePost(text) {
         scheduledAt: null,
         publishedAt: null,
         threadsPostId: null,
+        insights: null,
         error: null
     };
 }
@@ -121,6 +124,80 @@ async function publishToThreads(text) {
     return { creationId: createData.id, postId: publishData.id };
 }
 
+function normalizeInsights(raw) {
+    const result = {};
+    const values = raw?.data;
+    if (Array.isArray(values)) {
+        for (const item of values) {
+            const name = item?.name || item?.metric;
+            if (!name) continue;
+            let value = item?.value;
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                if (typeof value.value !== 'undefined') value = value.value;
+                else if (typeof value.total_value !== 'undefined') value = value.total_value;
+            }
+            result[name] = typeof value === 'number' ? value : Number(value ?? 0);
+        }
+    }
+    return result;
+}
+
+async function fetchPostInsights(postId) {
+    if (!process.env.THREADS_ACCESS_TOKEN) throw new Error('Falta THREADS_ACCESS_TOKEN en .env');
+    if (!postId) throw new Error('La publicación no tiene threadsPostId');
+
+    const params = new URLSearchParams({
+        metric: INSIGHTS_METRICS.join(','),
+        access_token: process.env.THREADS_ACCESS_TOKEN
+    });
+    const response = await fetch(`${THREADS_API}/${encodeURIComponent(postId)}/insights?${params.toString()}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data?.error?.message || JSON.stringify(data));
+
+    return normalizeInsights(data);
+}
+
+async function syncPostInsights(post) {
+    if (!post?.threadsPostId || post.status !== 'published') return { success: false, skipped: true };
+
+    try {
+        const metrics = await fetchPostInsights(post.threadsPostId);
+        const checkedAt = new Date().toISOString();
+        post.insights = {
+            ...(post.insights || {}),
+            ...metrics,
+            lastCheckedAt: checkedAt,
+            metricsRequested: INSIGHTS_METRICS
+        };
+        return { success: true, metrics };
+    } catch (error) {
+        post.insights = {
+            ...(post.insights || {}),
+            lastCheckedAt: new Date().toISOString(),
+            lastError: error.message,
+            metricsRequested: INSIGHTS_METRICS
+        };
+        return { success: false, error: error.message };
+    }
+}
+
+async function syncAllInsights() {
+    const store = readStore();
+    const published = store.posts.filter(post => post.status === 'published' && post.threadsPostId);
+    if (!published.length) return { success: true, checked: 0, updated: 0, errors: 0 };
+
+    let updated = 0;
+    let errors = 0;
+    for (const post of published) {
+        const result = await syncPostInsights(post);
+        if (result.success) updated++;
+        else errors++;
+    }
+    writeStore(store);
+    console.log(`📊 Insights sincronizados: ${updated} actualizados, ${errors} con error.`);
+    return { success: true, checked: published.length, updated, errors };
+}
+
 async function publishQueuePost(postId) {
     const store = readStore();
     const post = store.posts.find(item => item.id === postId);
@@ -139,10 +216,19 @@ async function publishQueuePost(postId) {
             current.status = 'published';
             current.publishedAt = new Date().toISOString();
             current.threadsPostId = result.postId;
+            current.insights = null;
             current.error = null;
         }
         writeStore(updated);
         console.log(`🎉 Publicación completada: ${postId}`);
+
+        const refreshed = readStore();
+        const publishedPost = refreshed.posts.find(item => item.id === postId);
+        if (publishedPost) {
+            const insightResult = await syncPostInsights(publishedPost);
+            writeStore(refreshed);
+            if (!insightResult.success) console.warn(`⚠️ No se pudieron obtener insights iniciales: ${insightResult.error}`);
+        }
         return { success: true, ...result };
     } catch (error) {
         const updated = readStore();
@@ -233,7 +319,7 @@ async function schedulerTick() {
     }
 }
 
-app.get('/api/health', (req, res) => res.json({ success: true, application: 'Threads AI Publisher', version: '2.1.0', server: 'V2', timestamp: new Date().toISOString() }));
+app.get('/api/health', (req, res) => res.json({ success: true, application: 'Threads AI Publisher', version: '2.2.0', server: 'V2', timestamp: new Date().toISOString() }));
 
 app.get('/api/state', (req, res) => {
     const store = readStore();
@@ -245,6 +331,40 @@ app.get('/api/state', (req, res) => {
     const published = store.posts.filter(post => post.status === 'published');
     const errors = store.posts.filter(post => post.status === 'error');
     res.json({ success: true, settings: store.settings, posts: store.posts, stats: { pending: pending.length, published: published.length, errors: errors.length, total: store.posts.length } });
+});
+
+app.get('/api/insights', async (req, res) => {
+    try {
+        const result = await syncAllInsights();
+        const store = readStore();
+        const published = store.posts.filter(post => post.status === 'published');
+        res.json({ success: true, metrics: INSIGHTS_METRICS, sync: result, posts: published });
+    } catch (error) {
+        console.error('❌ Error sincronizando insights:', error);
+        res.status(500).json({ success: false, error: error.message, metrics: INSIGHTS_METRICS });
+    }
+});
+
+app.post('/api/insights/sync', async (req, res) => {
+    try {
+        const result = await syncAllInsights();
+        res.json({ ...result, metrics: INSIGHTS_METRICS });
+    } catch (error) {
+        console.error('❌ Error en sincronización de insights:', error);
+        res.status(500).json({ success: false, error: error.message, metrics: INSIGHTS_METRICS });
+    }
+});
+
+app.get('/api/insights/:id', async (req, res) => {
+    const store = readStore();
+    const post = store.posts.find(item => item.id === req.params.id);
+    if (!post) return res.status(404).json({ success: false, error: 'Publicación no encontrada' });
+    if (post.status !== 'published' || !post.threadsPostId) return res.status(400).json({ success: false, error: 'La publicación todavía no tiene un ID de Threads publicado' });
+
+    const result = await syncPostInsights(post);
+    writeStore(store);
+    if (!result.success) return res.status(502).json({ success: false, error: result.error, post });
+    res.json({ success: true, post, metrics: INSIGHTS_METRICS });
 });
 
 app.post('/api/publish', async (req, res) => {
@@ -377,18 +497,14 @@ app.delete('/api/history', (req, res) => {
     res.json({ success: true });
 });
 
-app.use('/api', (req, res) => {
-    console.error(`❌ API NO ENCONTRADA: ${req.method} ${req.originalUrl}`);
-    res.status(404).json({ success: false, error: `Ruta API no encontrada: ${req.method} ${req.originalUrl}`, serverVersion: '2.1.0' });
-});
-
 ensureStore();
 setInterval(() => schedulerTick().catch(error => console.error('❌ Scheduler:', error)), 5000);
+setInterval(() => syncAllInsights().catch(error => console.error('❌ Insights scheduler:', error)), INSIGHTS_INTERVAL_MS);
 
 app.listen(PORT, () => {
     console.log('');
     console.log('==========================================');
-    console.log('🚀 THREADS AI PUBLISHER V2.1.0');
+    console.log('🚀 THREADS AI PUBLISHER V2.2.0');
     console.log(`🌐 http://localhost:${PORT}`);
     console.log(`🩺 http://localhost:${PORT}/api/health`);
     console.log('==========================================');
