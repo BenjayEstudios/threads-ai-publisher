@@ -1,1 +1,122 @@
-<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Threads AI Publisher · Historial</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="edit-modal.css"></head><body><nav class="main-nav"><div class="nav-inner"><a class="nav-brand" href="index.html">🧵 Threads AI Publisher</a><div class="nav-links"><a class="nav-link" href="index.html">⚙️ Configurar publicaciones</a><a class="nav-link active" href="history.html">📋 Historial</a></div></div></nav><main class="app-shell"><header class="topbar"><div><h1>📋 Cola e historial</h1><p>Consulta, edita, elimina o reintenta tus publicaciones.</p></div></header><section class="stats-grid"><article class="stat-card"><span>Pendientes</span><strong id="pendingCount">0</strong></article><article class="stat-card"><span>Publicados</span><strong id="publishedCount">0</strong></article><article class="stat-card"><span>Errores</span><strong id="errorCount">0</strong></article><article class="stat-card"><span>Próxima publicación</span><strong id="nextPublish">—</strong></article></section><section class="panel"><div class="panel-title"><div><h2>📋 Publicaciones</h2><p>Las más recientes aparecen primero.</p></div><button id="clearHistoryButton" type="button" class="danger-outline">Limpiar historial</button></div><div class="table-wrap"><table><thead><tr><th>Texto</th><th>Estado</th><th>Programada para</th><th>Fecha de publicación</th><th></th></tr></thead><tbody id="postsTable"></tbody></table></div><div id="historyStatus" class="status"></div></section></main><div id="editModal" class="edit-modal-overlay" aria-hidden="true"><section class="edit-modal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle"><div class="edit-modal-header"><div><h2 id="editModalTitle">✏️ Editar publicación</h2><p>Modifica el texto antes de que se publique.</p></div><button type="button" class="edit-modal-close" data-edit-close aria-label="Cerrar">×</button></div><form id="editModalForm"><div class="edit-modal-body"><textarea id="editModalText" class="edit-modal-textarea" maxlength="500"></textarea><div class="edit-modal-meta"><span>Máximo 500 caracteres</span><span><span id="editModalCounter">0</span> / 500</span></div><div id="editModalError" class="edit-modal-error" role="alert"></div></div><div class="edit-modal-footer"><button type="button" class="edit-modal-cancel" data-edit-close>Cancelar</button><button type="submit" id="editModalSave" class="edit-modal-save">💾 Guardar cambios</button></div></form></section></div><script src="history.js"></script><script src="edit-modal.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Threads AI Publisher · Analytics</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="edit-modal.css">
+</head>
+<body>
+<nav class="main-nav">
+  <div class="nav-inner">
+    <a class="nav-brand" href="index.html">🧵 Threads AI Publisher</a>
+    <div class="nav-links">
+      <a class="nav-link" href="index.html">⚙️ Configurar publicaciones</a>
+      <a class="nav-link active" href="history.html">📊 Analytics</a>
+    </div>
+  </div>
+</nav>
+
+<main class="app-shell">
+  <header class="topbar analytics-topbar">
+    <div>
+      <div class="eyebrow">INSIGHTS DE THREADS</div>
+      <h1>📊 Analytics</h1>
+      <p>Rendimiento de tus publicaciones a partir de los datos reales de Threads.</p>
+    </div>
+    <button id="syncInsightsButton" type="button" class="primary analytics-sync">↻ Sincronizar Insights</button>
+  </header>
+
+  <section class="stats-grid analytics-stats">
+    <article class="stat-card analytics-stat">
+      <span>👁 Views totales</span>
+      <strong id="analyticsTotalViews">0</strong>
+      <small id="analyticsViewAverage">Promedio: 0 por publicación</small>
+    </article>
+    <article class="stat-card analytics-stat">
+      <span>❤️ Engagements</span>
+      <strong id="analyticsTotalEngagement">0</strong>
+      <small>Likes + replies + reposts + quotes</small>
+    </article>
+    <article class="stat-card analytics-stat">
+      <span>📈 Engagement rate</span>
+      <strong id="analyticsEngagementRate">0%</strong>
+      <small>Interacciones / views</small>
+    </article>
+    <article class="stat-card analytics-stat">
+      <span>🏆 Mejor publicación</span>
+      <strong id="analyticsBestViews">0 views</strong>
+      <small id="analyticsBestText">Sin datos</small>
+    </article>
+  </section>
+
+  <section class="analytics-grid">
+    <article class="panel analytics-panel">
+      <div class="panel-title">
+        <div><h2>📈 Evolución de views</h2><p>Publicaciones ordenadas por fecha de publicación.</p></div>
+      </div>
+      <div id="viewsChart" class="views-chart" aria-label="Gráfico de evolución de views"></div>
+    </article>
+
+    <article class="panel analytics-panel">
+      <div class="panel-title">
+        <div><h2>⏰ Rendimiento por horario</h2><p>Promedio de views según la hora local de Chile.</p></div>
+      </div>
+      <div id="timePerformance" class="time-performance"></div>
+    </article>
+  </section>
+
+  <section class="panel analytics-panel">
+    <div class="panel-title">
+      <div><h2>🏆 Ranking de publicaciones</h2><p>Las publicaciones reales; la prueba «hola mundo» queda excluida del análisis.</p></div>
+      <span id="analyticsLastSync" class="analytics-sync-label">Sin sincronizar</span>
+    </div>
+    <div class="table-wrap">
+      <table class="analytics-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Publicación</th><th>Hora</th><th>Views</th><th>Likes</th><th>Replies</th><th>Reposts</th><th>Quotes</th><th>Engagement</th>
+          </tr>
+        </thead>
+        <tbody id="analyticsRanking"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="stats-grid analytics-detail-stats">
+    <article class="stat-card"><span>❤️ Likes</span><strong id="analyticsLikes">0</strong></article>
+    <article class="stat-card"><span>💬 Replies</span><strong id="analyticsReplies">0</strong></article>
+    <article class="stat-card"><span>🔁 Reposts</span><strong id="analyticsReposts">0</strong></article>
+    <article class="stat-card"><span>💭 Quotes</span><strong id="analyticsQuotes">0</strong></article>
+  </section>
+
+  <section class="panel">
+    <div class="panel-title">
+      <div><h2>📋 Cola e historial</h2><p>Consulta, edita, elimina o reintenta tus publicaciones.</p></div>
+      <button id="clearHistoryButton" type="button" class="danger-outline">Limpiar historial</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Texto</th><th>Estado</th><th>Programada para</th><th>Fecha de publicación</th><th></th></tr></thead>
+        <tbody id="postsTable"></tbody>
+      </table>
+    </div>
+    <div id="historyStatus" class="status"></div>
+  </section>
+</main>
+
+<div id="editModal" class="edit-modal-overlay" aria-hidden="true">
+  <section class="edit-modal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+    <div class="edit-modal-header"><div><h2 id="editModalTitle">✏️ Editar publicación</h2><p>Modifica el texto antes de que se publique.</p></div><button type="button" class="edit-modal-close" data-edit-close aria-label="Cerrar">×</button></div>
+    <form id="editModalForm">
+      <div class="edit-modal-body"><textarea id="editModalText" class="edit-modal-textarea" maxlength="500"></textarea><div class="edit-modal-meta"><span>Máximo 500 caracteres</span><span><span id="editModalCounter">0</span> / 500</span></div><div id="editModalError" class="edit-modal-error" role="alert"></div></div>
+      <div class="edit-modal-footer"><button type="button" class="edit-modal-cancel" data-edit-close>Cancelar</button><button type="submit" id="editModalSave" class="edit-modal-save">💾 Guardar cambios</button></div>
+    </form>
+  </section>
+</div>
+
+<script src="history.js"></script>
+<script src="edit-modal.js"></script>
+</body>
+</html>
