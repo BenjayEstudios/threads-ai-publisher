@@ -1,6 +1,80 @@
 const api=async(url,options={})=>{const r=await fetch(url,{...options,headers:{...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{})}});const t=await r.text();let d;try{d=JSON.parse(t)}catch{throw new Error(`Respuesta inválida (${r.status})`)}if(!r.ok||d.success===false)throw new Error(d.error||`Error HTTP ${r.status}`);return d};
-const $=s=>document.querySelector(s);function setStatus(e,m,t=''){if(e){e.textContent=m;e.className=t?`status ${t}`:'status'}};function formatDate(d){if(!d)return'—';const x=new Date(d);return Number.isNaN(x.getTime())?'—':x.toLocaleString('es-CL',{dateStyle:'short',timeStyle:'short',hour12:false})};function escapeHtml(v){return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;')};function escapeJs(v){return String(v).replaceAll('\\','\\\\').replaceAll("'","\\'").replaceAll('\n','\\n').replaceAll('\r','\\r')};
-function renderPosts(posts,settings){const table=$('#postsTable');const times=settings?.dailyTimes||[];let cursor=settings?.nextPublishAt?new Date(settings.nextPublishAt):null;const pending=[...posts].filter(p=>p.status==='pending').sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));const scheduled=new Map();if(settings?.autoPublish&&cursor&&!Number.isNaN(cursor.getTime()))pending.forEach(p=>{scheduled.set(p.id,cursor.toISOString());cursor=nextDailyDate(cursor,times)});const ordered=[...posts].reverse();if(!ordered.length){table.innerHTML='<tr><td colspan="5" class="empty">No hay publicaciones todavía.</td></tr>';return}table.innerHTML=ordered.map(p=>{const pub=p.status==='published',err=p.status==='error',at=p.scheduledAt||scheduled.get(p.id);let action='';if(p.status==='pending')action=`<div class="row-actions"><button class="icon-button edit-button" onclick="editPost('${escapeJs(p.id)}','${escapeJs(p.text)}')" title="Editar">✎</button><button class="icon-button delete-button" onclick="deletePost('${escapeJs(p.id)}')" title="Eliminar">🗑</button></div>`;else if(err)action=`<div class="row-actions"><button class="retry-button" onclick="retryPost('${escapeJs(p.id)}')">↻ Reintentar</button><button class="delete-button" onclick="deletePost('${escapeJs(p.id)}')">Eliminar</button></div>`;const label={pending:'Pendiente',publishing:'Publicando',published:'Publicado',error:'Error'}[p.status]||p.status;return `<tr class="${err?'error-row':''}"><td><div class="post-text">${escapeHtml(p.text)}</div>${p.error?`<div class="row-error">⚠ ${escapeHtml(p.error)}</div>`:''}</td><td><span class="pill ${escapeHtml(p.status)}">${label}</span></td><td><div class="date-cell"><span>${at?'📅':'—'}</span><span>${at?formatDate(at):'Sin programar'}</span></div></td><td><div class="date-cell"><span>${pub?'✅':'—'}</span><span>${pub?formatDate(p.publishedAt):'—'}</span></div></td><td>${action}</td></tr>`}).join('')};function nextDailyDate(d,times){const b=new Date(d);b.setSeconds(0,0);for(let x=0;x<=7;x++){const day=new Date(b);day.setDate(b.getDate()+x);for(const t of times){const [h,m]=String(t).split(':').map(Number),c=new Date(day);c.setHours(h,m,0,0);if(c>d)return c}}return null};
-async function loadState(){try{const d=await api('/api/state');$('#pendingCount').textContent=d.stats.pending;$('#publishedCount').textContent=d.stats.published;$('#errorCount').textContent=d.stats.errors;$('#nextPublish').textContent=d.settings.autoPublish&&d.settings.nextPublishAt?formatDate(d.settings.nextPublishAt):'—';renderPosts(d.posts,d.settings)}catch(e){setStatus($('#historyStatus'),`❌ ${e.message}`,'error')}}
-async function deletePost(id){if(!confirm('¿Eliminar esta publicación?'))return;try{await api(`/api/queue/${encodeURIComponent(id)}`,{method:'DELETE'});await loadState()}catch(e){alert(`No se pudo eliminar: ${e.message}`)}}async function retryPost(id){if(!confirm('¿Volver a poner esta publicación en la cola?'))return;try{await api(`/api/queue/${encodeURIComponent(id)}/retry`,{method:'POST',body:JSON.stringify({})});await loadState()}catch(e){alert(`No se pudo reintentar: ${e.message}`)}}window.deletePost=deletePost;window.retryPost=retryPost;
-$('#clearHistoryButton')?.addEventListener('click',async()=>{if(!confirm('¿Eliminar todo el historial de publicaciones y errores?'))return;try{await api('/api/history',{method:'DELETE'});setStatus($('#historyStatus'),'✅ Historial limpiado.','success');await loadState()}catch(e){setStatus($('#historyStatus'),`❌ ${e.message}`,'error')}});loadState();setInterval(loadState,5000);
+const $=s=>document.querySelector(s);
+function setStatus(e,m,t=''){if(e){e.textContent=m;e.className=t?`status ${t}`:'status'}}
+function formatDate(d){if(!d)return'—';const x=new Date(d);return Number.isNaN(x.getTime())?'—':x.toLocaleString('es-CL',{dateStyle:'short',timeStyle:'short',hour12:false})}
+function formatNumber(n){return Number(n||0).toLocaleString('es-CL')}
+function escapeHtml(v){return String(v).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;')}
+function escapeJs(v){return String(v).replaceAll('\\','\\\\').replaceAll("'","\\'").replaceAll('\n','\\n').replaceAll('\r','\\r')}
+function nextDailyDate(d,times){const b=new Date(d);b.setSeconds(0,0);for(let x=0;x<=7;x++){const day=new Date(b);day.setDate(b.getDate()+x);for(const t of times){const [h,m]=String(t).split(':').map(Number),c=new Date(day);c.setHours(h,m,0,0);if(c>d)return c}}return null}
+
+function getValidPublishedPosts(posts){return posts.filter(p=>p.status==='published'&&p.threadsPostId&&p.insights&&!p.insights.lastError&&!Number.isNaN(Number(p.insights.views)))}
+function localHour(date){try{return new Intl.DateTimeFormat('es-CL',{timeZone:'America/Santiago',hour:'2-digit',hour12:false}).format(new Date(date))}catch{return new Date(date).getHours().toString().padStart(2,'0')}}
+function calcEngagement(p){const i=p.insights||{};return Number(i.likes||0)+Number(i.replies||0)+Number(i.reposts||0)+Number(i.quotes||0)}
+function engagementRate(p){const views=Number(p.insights?.views||0);return views?calcEngagement(p)/views*100:0}
+
+function renderAnalytics(posts){
+  const valid=getValidPublishedPosts(posts).sort((a,b)=>new Date(a.publishedAt)-new Date(b.publishedAt));
+  const totalViews=valid.reduce((s,p)=>s+Number(p.insights.views||0),0);
+  const likes=valid.reduce((s,p)=>s+Number(p.insights.likes||0),0);
+  const replies=valid.reduce((s,p)=>s+Number(p.insights.replies||0),0);
+  const reposts=valid.reduce((s,p)=>s+Number(p.insights.reposts||0),0);
+  const quotes=valid.reduce((s,p)=>s+Number(p.insights.quotes||0),0);
+  const totalEngagement=likes+replies+reposts+quotes;
+  const rate=totalViews?totalEngagement/totalViews*100:0;
+  const best=valid.reduce((a,p)=>!a||Number(p.insights.views)>Number(a.insights.views)?p:a,null);
+  $('#analyticsTotalViews').textContent=formatNumber(totalViews);
+  $('#analyticsViewAverage').textContent=`Promedio: ${valid.length?formatNumber(Math.round(totalViews/valid.length)):0} por publicación`;
+  $('#analyticsTotalEngagement').textContent=formatNumber(totalEngagement);
+  $('#analyticsEngagementRate').textContent=`${rate.toFixed(2)}%`;
+  $('#analyticsBestViews').textContent=`${formatNumber(best?.insights?.views)} views`;
+  $('#analyticsBestText').textContent=best?best.text:'Sin datos';
+  $('#analyticsLikes').textContent=formatNumber(likes);
+  $('#analyticsReplies').textContent=formatNumber(replies);
+  $('#analyticsReposts').textContent=formatNumber(reposts);
+  $('#analyticsQuotes').textContent=formatNumber(quotes);
+  renderViewsChart(valid);
+  renderTimePerformance(valid);
+  renderRanking(valid);
+  const times=posts.filter(p=>p.status==='published'&&p.insights?.lastCheckedAt).map(p=>p.insights.lastCheckedAt).filter(Boolean);
+  const latest=times.length?new Date(Math.max(...times.map(x=>new Date(x).getTime()))):null;
+  $('#analyticsLastSync').textContent=latest?`Última sincronización: ${formatDate(latest)}`:'Sin sincronizar';
+}
+
+function renderViewsChart(posts){
+  const el=$('#viewsChart');
+  if(!posts.length){el.innerHTML='<div class="analytics-empty">Aún no hay datos de Insights disponibles.</div>';return}
+  const w=900,h=270,pad={l:46,r:22,t:20,b:42},iw=w-pad.l-pad.r,ih=h-pad.t-pad.b;
+  const vals=posts.map(p=>Number(p.insights.views||0)); const max=Math.max(...vals,1); const min=0;
+  const pts=vals.map((v,i)=>[pad.l+(posts.length===1?iw/2:iw*i/(posts.length-1)),pad.t+ih-(v-min)/(max-min||1)*ih]);
+  const grid=[0,.25,.5,.75,1].map(r=>{const y=pad.t+ih-(ih*r);const val=Math.round(max*r);return `<line x1="${pad.l}" y1="${y}" x2="${w-pad.r}" y2="${y}" class="chart-grid-line"/><text x="${pad.l-8}" y="${y+4}" text-anchor="end" class="chart-axis-label">${formatNumber(val)}</text>`}).join('');
+  const poly=pts.map(p=>p.join(',')).join(' ');
+  const circles=pts.map((p,i)=>`<g><circle cx="${p[0]}" cy="${p[1]}" r="5" class="chart-point"/><text x="${p[0]}" y="${h-15}" text-anchor="middle" class="chart-x-label">${localHour(posts[i].publishedAt)}h</text><text x="${p[0]}" y="${p[1]-11}" text-anchor="middle" class="chart-value-label">${formatNumber(vals[i])}</text></g>`).join('');
+  el.innerHTML=`<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Evolución de views"><g>${grid}</g><polyline points="${poly}" class="chart-line"/>${circles}</svg>`;
+}
+
+function renderTimePerformance(posts){
+  const el=$('#timePerformance');
+  if(!posts.length){el.innerHTML='<div class="analytics-empty">Aún no hay datos para comparar horarios.</div>';return}
+  const groups={};posts.forEach(p=>{const hour=localHour(p.publishedAt);if(!groups[hour])groups[hour]=[];groups[hour].push(Number(p.insights.views||0))});
+  const rows=Object.entries(groups).map(([hour,arr])=>({hour,avg:arr.reduce((a,b)=>a+b,0)/arr.length,count:arr.length})).sort((a,b)=>b.avg-a.avg);
+  const max=Math.max(...rows.map(x=>x.avg),1);
+  el.innerHTML=rows.map((r,i)=>`<div class="time-row"><div class="time-label"><strong>${escapeHtml(r.hour)}:00</strong><span>${r.count} ${r.count===1?'publicación':'publicaciones'}</span></div><div class="time-bar-track"><div class="time-bar" style="width:${Math.max(5,r.avg/max*100)}%"></div></div><strong class="time-value">${formatNumber(Math.round(r.avg))}</strong>${i===0?'<span class="best-badge">Mejor</span>':''}</div>`).join('');
+}
+
+function renderRanking(posts){
+  const body=$('#analyticsRanking');
+  if(!posts.length){body.innerHTML='<tr><td colspan="9" class="empty">No hay publicaciones con Insights disponibles.</td></tr>';return}
+  const ranked=[...posts].sort((a,b)=>Number(b.insights.views||0)-Number(a.insights.views||0));
+  body.innerHTML=ranked.map((p,i)=>{const iD=p.insights||{};const er=calcEngagement(p);return `<tr><td><span class="rank-number ${i<3?'top-rank':''}">${i+1}</span></td><td><div class="post-text analytics-post-text">${escapeHtml(p.text)}</div><small class="analytics-date">${formatDate(p.publishedAt)}</small></td><td>${localHour(p.publishedAt)}:00</td><td><strong>${formatNumber(iD.views)}</strong></td><td>${formatNumber(iD.likes)}</td><td>${formatNumber(iD.replies)}</td><td>${formatNumber(iD.reposts)}</td><td>${formatNumber(iD.quotes)}</td><td><span class="engagement-pill">${er} · ${engagementRate(p).toFixed(2)}%</span></td></tr>`}).join('');
+}
+
+function renderPosts(posts,settings){const table=$('#postsTable');const times=settings?.dailyTimes||[];let cursor=settings?.nextPublishAt?new Date(settings.nextPublishAt):null;const pending=[...posts].filter(p=>p.status==='pending').sort((a,b)=>new Date(a.createdAt)-new Date(b.createdAt));const scheduled=new Map();if(settings?.autoPublish&&cursor&&!Number.isNaN(cursor.getTime()))pending.forEach(p=>{scheduled.set(p.id,cursor.toISOString());cursor=nextDailyDate(cursor,times)});const ordered=[...posts].filter(p=>p.id!=='1788201041040-6zlhs9').reverse();if(!ordered.length){table.innerHTML='<tr><td colspan="5" class="empty">No hay publicaciones todavía.</td></tr>';return}table.innerHTML=ordered.map(p=>{const pub=p.status==='published',err=p.status==='error',at=p.scheduledAt||scheduled.get(p.id);let action='';if(p.status==='pending')action=`<div class="row-actions"><button class="icon-button edit-button" onclick="editPost('${escapeJs(p.id)}','${escapeJs(p.text)}')" title="Editar">✎</button><button class="icon-button delete-button" onclick="deletePost('${escapeJs(p.id)}')" title="Eliminar">🗑</button></div>`;else if(err)action=`<div class="row-actions"><button class="retry-button" onclick="retryPost('${escapeJs(p.id)}')">↻ Reintentar</button><button class="delete-button" onclick="deletePost('${escapeJs(p.id)}')">Eliminar</button></div>`;const label={pending:'Pendiente',publishing:'Publicando',published:'Publicado',error:'Error'}[p.status]||p.status;return `<tr class="${err?'error-row':''}"><td><div class="post-text">${escapeHtml(p.text)}</div>${p.error?`<div class="row-error">⚠ ${escapeHtml(p.error)}</div>`:''}</td><td><span class="pill ${escapeHtml(p.status)}">${label}</span></td><td><div class="date-cell"><span>${at?'📅':'—'}</span><span>${at?formatDate(at):'Sin programar'}</span></div></td><td><div class="date-cell"><span>${pub?'✅':'—'}</span><span>${pub?formatDate(p.publishedAt):'—'}</span></div></td><td>${action}</td></tr>`}).join('')}
+
+async function loadState(){try{const d=await api('/api/state');$('#pendingCount').textContent=d.stats.pending;$('#publishedCount').textContent=d.stats.published;$('#errorCount').textContent=d.stats.errors;$('#nextPublish').textContent=d.settings.autoPublish&&d.settings.nextPublishAt?formatDate(d.settings.nextPublishAt):'—';renderAnalytics(d.posts);renderPosts(d.posts,d.settings)}catch(e){setStatus($('#historyStatus'),`❌ ${e.message}`,'error')}}
+async function syncInsights(){const b=$('#syncInsightsButton');try{b.disabled=true;b.textContent='↻ Sincronizando...';await api('/api/insights/sync',{method:'POST'});setStatus($('#historyStatus'),'✅ Insights sincronizados correctamente.','success');await loadState()}catch(e){setStatus($('#historyStatus'),`❌ ${e.message}`,'error')}finally{b.disabled=false;b.textContent='↻ Sincronizar Insights'}}
+async function deletePost(id){if(!confirm('¿Eliminar esta publicación?'))return;try{await api(`/api/queue/${encodeURIComponent(id)}`,{method:'DELETE'});await loadState()}catch(e){alert(`No se pudo eliminar: ${e.message}`)}}
+async function retryPost(id){if(!confirm('¿Volver a poner esta publicación en la cola?'))return;try{await api(`/api/queue/${encodeURIComponent(id)}/retry`,{method:'POST',body:JSON.stringify({})});await loadState()}catch(e){alert(`No se pudo reintentar: ${e.message}`)}}
+window.deletePost=deletePost;window.retryPost=retryPost;
+$('#syncInsightsButton')?.addEventListener('click',syncInsights);
+$('#clearHistoryButton')?.addEventListener('click',async()=>{if(!confirm('¿Eliminar todo el historial de publicaciones y errores?'))return;try{await api('/api/history',{method:'DELETE'});setStatus($('#historyStatus'),'✅ Historial limpiado.','success');await loadState()}catch(e){setStatus($('#historyStatus'),`❌ ${e.message}`,'error')}});
+loadState();setInterval(loadState,60000);
