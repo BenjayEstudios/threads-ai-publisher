@@ -13,51 +13,51 @@
     {
       "id": "1788202355663-j3bue2",
       "text": "A veces avanzar significa seguir intentando, incluso cuando nadie está viendo el esfuerzo.",
-      "status": "pending",
+      "status": "published",
       "createdAt": "2026-08-31T18:52:35.663Z",
-      "scheduledAt": null,
-      "publishedAt": null,
-      "threadsPostId": null,
+      "scheduledAt": "2026-09-01T18:00:00.000Z",
+      "publishedAt": "2026-09-01T18:00:08.835Z",
+      "threadsPostId": "18129611329708270",
       "error": null
     },
     {
       "id": "1788202363216-uf1c2a",
       "text": "Un día vas a agradecer no haber renunciado en ese momento en que todo parecía perdido.",
-      "status": "pending",
+      "status": "published",
       "createdAt": "2026-08-31T18:52:43.216Z",
-      "scheduledAt": null,
-      "publishedAt": null,
-      "threadsPostId": null,
+      "scheduledAt": "2026-09-02T00:00:00.000Z",
+      "publishedAt": "2026-09-02T00:00:08.545Z",
+      "threadsPostId": "18148332442471337",
       "error": null
     },
     {
       "id": "1788202366938-xt0pou",
       "text": "No estás atrasado. Estás construyendo tu propio camino a tu propio ritmo.",
-      "status": "pending",
+      "status": "published",
       "createdAt": "2026-08-31T18:52:46.938Z",
-      "scheduledAt": null,
-      "publishedAt": null,
-      "threadsPostId": null,
+      "scheduledAt": "2026-09-02T12:00:00.000Z",
+      "publishedAt": "2026-09-02T12:00:09.116Z",
+      "threadsPostId": "18014509889945423",
       "error": null
     },
     {
       "id": "1788202371212-the529",
       "text": "Nadie puede cambiar tu vida por ti. El primer paso siempre depende de ti.",
-      "status": "pending",
+      "status": "published",
       "createdAt": "2026-08-31T18:52:51.212Z",
-      "scheduledAt": null,
-      "publishedAt": null,
-      "threadsPostId": null,
+      "scheduledAt": "2026-09-02T18:00:00.000Z",
+      "publishedAt": "2026-09-02T18:00:08.196Z",
+      "threadsPostId": "17940240846356894",
       "error": null
     },
     {
       "id": "1788202377139-0oclf6",
       "text": "Hay días en los que avanzar 1% sigue siendo avanzar.",
-      "status": "pending",
+      "status": "published",
       "createdAt": "2026-08-31T18:52:57.139Z",
-      "scheduledAt": null,
-      "publishedAt": null,
-      "threadsPostId": null,
+      "scheduledAt": "2026-09-03T00:00:00.000Z",
+      "publishedAt": "2026-09-03T00:00:07.613Z",
+      "threadsPostId": "18092244056555318",
       "error": null
     },
     {
@@ -305,10 +305,10 @@
     "autoPublish": true,
     "intervalMinutes": 720,
     "dailyTimes": [
-      "08:00",
+      "09:00",
       "14:00",
       "20:00"
     ],
-    "nextPublishAt": "2026-09-02T00:00:02.993Z"
+    "nextPublishAt": "2026-09-03T13:00:00.000Z"
   }
 }
