@@ -1,149 +1,20 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Threads AI Publisher</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="edit-modal.css">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Threads AI Publisher · Configuración</title>
+<link rel="stylesheet" href="style.css"><link rel="stylesheet" href="edit-modal.css">
 </head>
 <body>
-    <main class="app-shell">
-        <header class="topbar">
-            <div>
-                <h1>🧵 Threads AI Publisher</h1>
-                <p>Publica ahora o deja una cola trabajando automáticamente.</p>
-            </div>
-            <div id="automationBadge" class="badge paused">⏸ Pausado</div>
-        </header>
-
-        <section class="stats-grid">
-            <article class="stat-card"><span>Pendientes</span><strong id="pendingCount">0</strong></article>
-            <article class="stat-card"><span>Publicados</span><strong id="publishedCount">0</strong></article>
-            <article class="stat-card"><span>Errores</span><strong id="errorCount">0</strong></article>
-            <article class="stat-card"><span>Próxima publicación</span><strong id="nextPublish">—</strong></article>
-        </section>
-
-        <div class="grid-layout">
-            <section class="panel">
-                <div class="panel-title">
-                    <div><h2>✍️ Publicar ahora</h2><p>Publica directamente en Threads.</p></div>
-                </div>
-                <textarea id="postText" maxlength="500" placeholder="Escribe tu publicación..."></textarea>
-                <div class="row-between"><span class="counter"><span id="counter">0</span> / 500</span></div>
-                <button id="publishButton" type="button" class="primary">🧵 Publicar ahora</button>
-                <div id="manualStatus" class="status"></div>
-            </section>
-
-            <section class="panel">
-                <div class="panel-title">
-                    <div><h2>📥 Agregar a la cola</h2><p>Separa las notas con una línea vacía.</p></div>
-                </div>
-                <textarea id="queueText" maxlength="10000" placeholder="Primera publicación...\n\nSegunda publicación...\n\nTercera publicación..."></textarea>
-                <button id="addQueueButton" type="button" class="secondary">➕ Agregar a la cola</button>
-                <div id="queueStatus" class="status"></div>
-            </section>
-        </div>
-
-        <section class="panel scheduler-panel">
-            <div class="panel-title">
-                <div>
-                    <h2>⏰ Publicación automática</h2>
-                    <p>Elige los horarios exactos en los que quieres publicar cada día.</p>
-                </div>
-            </div>
-
-            <div class="daily-schedule">
-                <div class="schedule-header">
-                    <strong>Horarios diarios</strong>
-                    <span id="scheduleSummary">0 horarios seleccionados</span>
-                </div>
-
-                <div class="schedule-slots">
-                    <label class="time-option"><input type="checkbox" class="schedule-time" value="08:00"><span>08:00</span></label>
-                    <label class="time-option"><input type="checkbox" class="schedule-time" value="10:00"><span>10:00</span></label>
-                    <label class="time-option"><input type="checkbox" class="schedule-time" value="12:00"><span>12:00</span></label>
-                    <label class="time-option"><input type="checkbox" class="schedule-time" value="14:00"><span>14:00</span></label>
-                    <label class="time-option"><input type="checkbox" class="schedule-time" value="16:00"><span>16:00</span></label>
-                    <label class="time-option"><input type="checkbox" class="schedule-time" value="18:00"><span>18:00</span></label>
-                    <label class="time-option"><input type="checkbox" class="schedule-time" value="20:00"><span>20:00</span></label>
-                    <label class="time-option"><input type="checkbox" class="schedule-time" value="22:00"><span>22:00</span></label>
-                </div>
-
-                <div class="custom-time-row">
-                    <label>
-                        Agregar otra hora
-                        <input id="customTime" type="time" value="">
-                    </label>
-                    <button id="addCustomTimeButton" type="button" class="secondary">➕ Agregar horario</button>
-                </div>
-            </div>
-
-            <div class="scheduler-controls">
-                <button id="saveScheduleButton" type="button" class="secondary">💾 Guardar horarios</button>
-                <button id="startButton" type="button" class="primary">▶ Iniciar</button>
-                <button id="pauseButton" type="button" class="warning">⏸ Pausar</button>
-            </div>
-
-            <div class="schedule-help">
-                Puedes seleccionar varios horarios. Por ejemplo, <strong>08:00, 14:00 y 20:00</strong> publicará tres veces al día.
-                La primera publicación será el siguiente horario disponible y luego continuará diariamente.
-            </div>
-
-            <div id="schedulerStatus" class="status"></div>
-        </section>
-
-        <section class="panel">
-            <div class="panel-title">
-                <div><h2>📋 Cola e historial</h2><p>Las más recientes aparecen primero.</p></div>
-                <button id="clearHistoryButton" type="button" class="danger-outline">Limpiar historial</button>
-            </div>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Texto</th>
-                            <th>Estado</th>
-                            <th>Programada para</th>
-                            <th>Fecha de publicación</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody id="postsTable"></tbody>
-                </table>
-            </div>
-        </section>
-    </main>
-
-    <div id="editModal" class="edit-modal-overlay" aria-hidden="true">
-        <section class="edit-modal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
-            <div class="edit-modal-header">
-                <div>
-                    <h2 id="editModalTitle">✏️ Editar publicación</h2>
-                    <p>Modifica el texto antes de que se publique.</p>
-                </div>
-                <button type="button" class="edit-modal-close" data-edit-close aria-label="Cerrar">×</button>
-            </div>
-
-            <form id="editModalForm">
-                <div class="edit-modal-body">
-                    <textarea id="editModalText" class="edit-modal-textarea" maxlength="500" placeholder="Escribe tu publicación..."></textarea>
-                    <div class="edit-modal-meta">
-                        <span>Máximo 500 caracteres</span>
-                        <span><span id="editModalCounter">0</span> / 500</span>
-                    </div>
-                    <div id="editModalError" class="edit-modal-error" role="alert"></div>
-                </div>
-
-                <div class="edit-modal-footer">
-                    <button type="button" class="edit-modal-cancel" data-edit-close>Cancelar</button>
-                    <button type="submit" id="editModalSave" class="edit-modal-save">💾 Guardar cambios</button>
-                </div>
-            </form>
-        </section>
-    </div>
-
-    <script src="app.js"></script>
-    <script src="edit-modal.js"></script>
-</body>
-</html>
+<nav class="main-nav"><div class="nav-inner"><a class="nav-brand" href="index.html">🧵 Threads AI Publisher</a><div class="nav-links"><a class="nav-link active" href="index.html">⚙️ Configurar publicaciones</a><a class="nav-link" href="history.html">📋 Historial</a></div></div></nav>
+<main class="app-shell">
+<header class="topbar"><div><h1>⚙️ Configurar publicaciones</h1><p>Publica ahora o deja una cola trabajando automáticamente.</p></div><div id="automationBadge" class="badge paused">⏸ Pausado</div></header>
+<section class="stats-grid"><article class="stat-card"><span>Pendientes</span><strong id="pendingCount">0</strong></article><article class="stat-card"><span>Publicados</span><strong id="publishedCount">0</strong></article><article class="stat-card"><span>Errores</span><strong id="errorCount">0</strong></article><article class="stat-card"><span>Próxima publicación</span><strong id="nextPublish">—</strong></article></section>
+<div class="grid-layout">
+<section class="panel"><div class="panel-title"><div><h2>✍️ Publicar ahora</h2><p>Publica directamente en Threads.</p></div></div><textarea id="postText" maxlength="500" placeholder="Escribe tu publicación..."></textarea><div class="row-between"><span class="counter"><span id="counter">0</span> / 500</span></div><button id="publishButton" type="button" class="primary">🧵 Publicar ahora</button><div id="manualStatus" class="status"></div></section>
+<section class="panel"><div class="panel-title"><div><h2>📥 Agregar a la cola</h2><p>Separa las notas con una línea vacía.</p></div></div><textarea id="queueText" maxlength="10000" placeholder="Primera publicación...\n\nSegunda publicación...\n\nTercera publicación..."></textarea><button id="addQueueButton" type="button" class="secondary">➕ Agregar a la cola</button><div id="queueStatus" class="status"></div></section>
+</div>
+<section class="panel scheduler-panel"><div class="panel-title"><div><h2>⏰ Publicación automática</h2><p>Elige los horarios exactos en los que quieres publicar cada día.</p></div></div><div class="daily-schedule"><div class="schedule-header"><strong>Horarios diarios</strong><span id="scheduleSummary">0 horarios seleccionados</span></div><div class="schedule-slots"><label class="time-option"><input type="checkbox" class="schedule-time" value="08:00"><span>08:00</span></label><label class="time-option"><input type="checkbox" class="schedule-time" value="10:00"><span>10:00</span></label><label class="time-option"><input type="checkbox" class="schedule-time" value="12:00"><span>12:00</span></label><label class="time-option"><input type="checkbox" class="schedule-time" value="14:00"><span>14:00</span></label><label class="time-option"><input type="checkbox" class="schedule-time" value="16:00"><span>16:00</span></label><label class="time-option"><input type="checkbox" class="schedule-time" value="18:00"><span>18:00</span></label><label class="time-option"><input type="checkbox" class="schedule-time" value="20:00"><span>20:00</span></label><label class="time-option"><input type="checkbox" class="schedule-time" value="22:00"><span>22:00</span></label></div><div class="custom-time-row"><label>Agregar otra hora<input id="customTime" type="time"></label><button id="addCustomTimeButton" type="button" class="secondary">➕ Agregar horario</button></div></div><div class="scheduler-controls"><button id="saveScheduleButton" type="button" class="secondary">💾 Guardar horarios</button><button id="startButton" type="button" class="primary">▶ Iniciar</button><button id="pauseButton" type="button" class="warning">⏸ Pausar</button></div><div class="schedule-help">Puedes seleccionar varios horarios. Los horarios personalizados, como <strong>09:00</strong>, también quedan guardados y seguirán apareciendo al volver a entrar.</div><div id="schedulerStatus" class="status"></div></section>
+</main>
+<div id="editModal" class="edit-modal-overlay" aria-hidden="true"><section class="edit-modal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle"><div class="edit-modal-header"><div><h2 id="editModalTitle">✏️ Editar publicación</h2><p>Modifica el texto antes de que se publique.</p></div><button type="button" class="edit-modal-close" data-edit-close aria-label="Cerrar">×</button></div><form id="editModalForm"><div class="edit-modal-body"><textarea id="editModalText" class="edit-modal-textarea" maxlength="500"></textarea><div class="edit-modal-meta"><span>Máximo 500 caracteres</span><span><span id="editModalCounter">0</span> / 500</span></div><div id="editModalError" class="edit-modal-error" role="alert"></div></div><div class="edit-modal-footer"><button type="button" class="edit-modal-cancel" data-edit-close>Cancelar</button><button type="submit" id="editModalSave" class="edit-modal-save">💾 Guardar cambios</button></div></form></section></div>
+<script src="app.js"></script><script src="edit-modal.js"></script><script src="schedule-persistence.js"></script>
+</body></html>
