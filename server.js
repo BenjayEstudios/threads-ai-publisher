@@ -127,18 +127,31 @@ async function publishToThreads(text) {
 function normalizeInsights(raw) {
     const result = {};
     const values = raw?.data;
-    if (Array.isArray(values)) {
-        for (const item of values) {
-            const name = item?.name || item?.metric;
-            if (!name) continue;
-            let value = item?.value;
-            if (value && typeof value === 'object' && !Array.isArray(value)) {
-                if (typeof value.value !== 'undefined') value = value.value;
-                else if (typeof value.total_value !== 'undefined') value = value.total_value;
-            }
-            result[name] = typeof value === 'number' ? value : Number(value ?? 0);
+    if (!Array.isArray(values)) return result;
+
+    for (const item of values) {
+        const name = item?.name || item?.metric;
+        if (!name) continue;
+
+        let value;
+
+        // Post insights return lifetime values as: values: [{ value: 123 }]
+        if (Array.isArray(item?.values) && item.values.length > 0) {
+            value = item.values[0]?.value;
         }
+
+        // Some insights use total_value instead.
+        if (typeof value === 'undefined' && item?.total_value && typeof item.total_value === 'object') {
+            value = item.total_value.value;
+        }
+
+        // Keep compatibility with a direct scalar value if returned by the API.
+        if (typeof value === 'undefined') value = item?.value;
+
+        const numericValue = Number(value);
+        if (Number.isFinite(numericValue)) result[name] = numericValue;
     }
+
     return result;
 }
 
