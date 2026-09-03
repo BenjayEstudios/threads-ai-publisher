@@ -63,11 +63,11 @@
     {
       "id": "1788202382006-aibixc",
       "text": "No confundas una mala etapa con una mala vida.",
-      "status": "pending",
+      "status": "published",
       "createdAt": "2026-08-31T18:53:02.006Z",
-      "scheduledAt": null,
-      "publishedAt": null,
-      "threadsPostId": null,
+      "scheduledAt": "2026-09-03T13:00:00.000Z",
+      "publishedAt": "2026-09-03T13:00:08.309Z",
+      "threadsPostId": "18148930999550419",
       "error": null
     },
     {
@@ -309,6 +309,6 @@
       "14:00",
       "20:00"
     ],
-    "nextPublishAt": "2026-09-03T13:00:00.000Z"
+    "nextPublishAt": "2026-09-03T18:00:00.000Z"
   }
 }
