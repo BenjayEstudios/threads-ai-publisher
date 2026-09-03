@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Threads AI Publisher</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="edit-modal.css">
 </head>
 <body>
     <main class="app-shell">
@@ -113,6 +114,36 @@
             </div>
         </section>
     </main>
+
+    <div id="editModal" class="edit-modal-overlay" aria-hidden="true">
+        <section class="edit-modal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+            <div class="edit-modal-header">
+                <div>
+                    <h2 id="editModalTitle">✏️ Editar publicación</h2>
+                    <p>Modifica el texto antes de que se publique.</p>
+                </div>
+                <button type="button" class="edit-modal-close" data-edit-close aria-label="Cerrar">×</button>
+            </div>
+
+            <form id="editModalForm">
+                <div class="edit-modal-body">
+                    <textarea id="editModalText" class="edit-modal-textarea" maxlength="500" placeholder="Escribe tu publicación..."></textarea>
+                    <div class="edit-modal-meta">
+                        <span>Máximo 500 caracteres</span>
+                        <span><span id="editModalCounter">0</span> / 500</span>
+                    </div>
+                    <div id="editModalError" class="edit-modal-error" role="alert"></div>
+                </div>
+
+                <div class="edit-modal-footer">
+                    <button type="button" class="edit-modal-cancel" data-edit-close>Cancelar</button>
+                    <button type="submit" id="editModalSave" class="edit-modal-save">💾 Guardar cambios</button>
+                </div>
+            </form>
+        </section>
+    </div>
+
     <script src="app.js"></script>
+    <script src="edit-modal.js"></script>
 </body>
 </html>
