@@ -12,6 +12,13 @@
         };
     }
 
+    function setEditStatus(message, type = '') {
+        const status = document.querySelector('#historyStatus') || document.querySelector('#schedulerStatus');
+        if (!status) return;
+        status.textContent = message;
+        status.className = type ? `status ${type}` : 'status';
+    }
+
     function closeEditModal() {
         const { overlay, form, textarea, error } = getModalElements();
         if (!overlay) return;
@@ -68,7 +75,7 @@
 
         if (!editingPostId) return;
 
-        saveButton.disabled = true;
+        if (saveButton) saveButton.disabled = true;
         if (error) error.textContent = '';
 
         try {
@@ -78,12 +85,12 @@
             });
 
             closeEditModal();
-            setStatus(schedulerStatus, '✏️ Publicación editada correctamente.', 'success');
+            setEditStatus('✏️ Publicación editada correctamente.', 'success');
             await loadState();
         } catch (requestError) {
             if (error) error.textContent = `No se pudo guardar: ${requestError.message}`;
         } finally {
-            saveButton.disabled = false;
+            if (saveButton) saveButton.disabled = false;
         }
     }
 
@@ -94,7 +101,9 @@
         textarea?.addEventListener('input', updateEditCounter);
         form?.addEventListener('submit', saveEditModal);
 
-        overlay.querySelector('[data-edit-close]')?.addEventListener('click', closeEditModal);
+        overlay.querySelectorAll('[data-edit-close]').forEach(button => {
+            button.addEventListener('click', closeEditModal);
+        });
         overlay.addEventListener('click', (event) => {
             if (event.target === overlay) closeEditModal();
         });
